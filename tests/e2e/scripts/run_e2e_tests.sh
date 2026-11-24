@@ -111,11 +111,16 @@ validate_bool USE_TEST_RETRY
 
 # Build GitHub PR notification flags when PULL_NUMBER and GITHUB_TOKEN are set
 # (both are injected by Prow into presubmit jobs)
-GITHUB_PR_FLAGS=""
+GITHUB_PR_FLAGS=()
 if [ -n "${PULL_NUMBER:-}" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
   : "${REPO_OWNER:=opendatahub-io}"
   : "${REPO_NAME:=opendatahub-operator}"
-  GITHUB_PR_FLAGS="--github-owner=${REPO_OWNER} --github-repo=${REPO_NAME} --github-pr=${PULL_NUMBER} --failure-label=${E2E_FLAKY_LABEL}"
+  GITHUB_PR_FLAGS=(
+    "--github-owner=${REPO_OWNER}"
+    "--github-repo=${REPO_NAME}"
+    "--github-pr=${PULL_NUMBER}"
+    "--failure-label=${E2E_FLAKY_LABEL}"
+  )
 fi
 
 RESULTS_DIR="${E2E_RESULTS_DIR:-results}"
@@ -173,7 +178,6 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
   echo "Using test-retry for JUnit enrichment with failure classification"
 
   test_exit=0
-  # shellcheck disable=SC2086
   test-retry e2e \
     --command ./e2e-tests \
     --filter "" \
@@ -181,7 +185,7 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
     --max-retries 3 \
     --junit-output "$JUNIT_FILE" \
     --verbose \
-    ${GITHUB_PR_FLAGS} \
+    "${GITHUB_PR_FLAGS[@]}" \
     -- --test.parallel=8 --test.timeout="$E2E_TEST_TIMEOUT" \
     --deletion-policy="$E2E_TEST_DELETION_POLICY" \
     --clean-up-previous-resources="$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES" \

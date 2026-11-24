@@ -605,6 +605,18 @@ func applyTestProfile(profile TestProfile) error {
 	}
 }
 
+func clearDAGReportForAttempt(profile TestProfile, path string) error {
+	if profile != ProfileDAG || path == "" {
+		return nil
+	}
+
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) { //nolint:gosec // This is an explicitly configured local E2E artifact path.
+		return fmt.Errorf("clear stale DAG report %q: %w", path, err)
+	}
+
+	return nil
+}
+
 func TestMain(m *testing.M) {
 	// Gomega output config:
 	format.MaxLength = 0 // 0 disables truncation entirely
@@ -786,6 +798,10 @@ func TestMain(m *testing.M) {
 	// Config validation
 	if err := Services.Validate(); err != nil {
 		fmt.Printf("test-service: %s", err.Error())
+		os.Exit(1)
+	}
+	if err := clearDAGReportForAttempt(testOpts.profile, os.Getenv("E2E_DAG_REPORT_PATH")); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 

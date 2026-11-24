@@ -389,7 +389,9 @@ func (tc *OperatorResilienceTestCtx) ValidateRBACRestrictionHandling(t *testing.
 // churn additional-ingress resources and that drift introduced while the operator
 // restarts converges once it is back: the additional Gateway, bridge Route, TLS Secret
 // and provider Service keep their UIDs, an infrastructure ConfigMap deleted during the
-// restart is recreated, and the ingress returns to Ready at the same generation.
+// restart is recreated, and the ingress returns to Ready at the same generation. The
+// default-path continuity check explicitly covers its auth redirect and HTTPRoute
+// configuration, not authenticated backend reachability.
 //
 // It lives in the resilience suite rather than the gateway suite because restarting the
 // operator inside a services spec would disturb every later spec of that suite.
@@ -412,14 +414,15 @@ func (tc *OperatorResilienceTestCtx) ValidateAdditionalIngressRestartResilience(
 	original := gatewayConfig.DeepCopy()
 	originalGateway, err := gtc.getGateway(ctx)
 	require.NoError(t, err)
-	backendFixture := gtc.deployDefaultGatewayBackendFixture(t, false)
+	authRedirectFixture := gtc.deployDefaultGatewayBackendFixture(t, false)
 	defaultRoute := &routev1.Route{}
 	defaultRouteKey := types.NamespacedName{Name: gtc.gatewayName(), Namespace: gtc.gatewayNamespace()}
 	require.NoError(t, gtc.Client().Get(ctx, defaultRouteKey, defaultRoute))
 	require.NotEmpty(t, defaultRoute.Spec.Host)
-	checkDefault := func() {
-		gtc.assertDefaultGatewayContinuity(ctx, t, originalGateway.UID, defaultRoute.UID, backendFixture.url)
-		gtc.assertGatewayBackendFixtureUnchanged(ctx, t, backendFixture)
+	checkDefaultAuthRedirectAndConfigContinuity := func() {
+		gtc.assertDefaultGatewayAuthRedirectAndConfigContinuity(
+			ctx, t, originalGateway.UID, defaultRoute.UID, authRedirectFixture,
+		)
 	}
 
 	controllerName := fmt.Sprintf("e2e-restart-shard-%x", time.Now().UnixNano())
@@ -463,7 +466,7 @@ func (tc *OperatorResilienceTestCtx) ValidateAdditionalIngressRestartResilience(
 	gtc.validateAdditionalGatewayStatus(t, 1, alpha.Name, alpha.Hostname)
 	alphaRouteKey := types.NamespacedName{Name: alpha.Name, Namespace: gtc.gatewayNamespace()}
 	validateAdditionalIngressRouteAdmissionStatus(t, gtc, alphaRouteKey, alpha.Name, alpha.Hostname, controllerName)
-	checkDefault()
+	checkDefaultAuthRedirectAndConfigContinuity()
 
 	// Snapshot the resources that must survive the restart in place. Only resources whose
 	// existence validateAdditionalGatewayAndRoute already asserts are included. The
@@ -541,7 +544,7 @@ func (tc *OperatorResilienceTestCtx) ValidateAdditionalIngressRestartResilience(
 	gtc.validateAdditionalGatewayAndRoute(t, alpha)
 	gtc.validateAdditionalGatewayStatus(t, 1, alpha.Name, alpha.Hostname)
 	validateAdditionalIngressRouteAdmissionStatus(t, gtc, alphaRouteKey, alpha.Name, alpha.Hostname, controllerName)
-	checkDefault()
+	checkDefaultAuthRedirectAndConfigContinuity()
 
 	// Removal and orphan verification run in the restore cleanup.
 }

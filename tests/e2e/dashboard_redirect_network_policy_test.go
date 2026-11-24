@@ -253,19 +253,12 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectNetworkPolicyTraffic(t *testi
 				Name:    "probe",
 				Image:   dashboardRedirectTrafficProbeImage,
 				Command: []string{"/bin/sh", "-c"},
-				Args: []string{`
-set -eu
+				Args: []string{networkPolicyCurlProbeShell + `
 if ! curl --noproxy '*' -ksS --connect-timeout 5 --max-time 10 -o /dev/null https://kubernetes.default.svc/version; then
   echo 'control request to Kubernetes API failed' > /dev/termination-log
   exit 1
 fi
-output="$(curl --noproxy '*' -kv --connect-timeout 5 --max-time 8 -o /dev/null "$REDIRECT_HTTP_URL" 2>&1)" || true
-case "$output" in
-  *'Connected to '*)
-    echo "unexpected TCP connection to $REDIRECT_HTTP_URL" > /dev/termination-log
-    exit 1
-    ;;
-esac
+network_policy_expect_connection_denied "$REDIRECT_HTTP_URL"
 echo 'API control connected; redirect port denied' > /dev/termination-log
 `},
 				Env: []corev1.EnvVar{

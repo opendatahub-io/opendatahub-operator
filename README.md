@@ -931,12 +931,10 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_DSC_VALIDATION                  | To configure the execution of DSCI/DSC validation tests, this is useful to run e2e tests for an operator running in xKS cluster                                                                                            | `true`                        |
 | E2E_TEST_OPERATOR_CONTROLLER             | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                                                    | `true`                        |
 | E2E_TEST_OPERATOR_RESILIENCE             | To configure the execution of operator resilience tests, useful for testing operator fault tolerance scenarios                                                                                                             | `true`                        |
-
 | E2E_TEST_CONVERSION_WEBHOOK              | Run conversion webhook scenarios. Defaults to `true` in full and targeted runs; set to `false` to disable them. DSC scenarios delete `default-dsc`. | `true` |
 | E2E_TEST_CONVERSION_WEBHOOK_DSC          | Include DSC conversion scenarios when the conversion suite runs. Set `false` to run only Platform conversion scenarios. | `true` |
 | E2E_TEST_CONVERSION_WEBHOOK_PLATFORM     | Include Platform conversion scenarios when the conversion suite runs. Set `false` to run only DSC conversion scenarios. | `true` |
-| E2E_TEST_DELETION_POLICY                 | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                                                                 | `always`                      |
-
+| E2E_TEST_DELETION_POLICY                 | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`. The low-level default is `always`; `make e2e-test` overrides it to `never`. | `always`                      |
 | E2E_TEST_SERVICES                        | Enable testing of individual services specified by --test-service flag                                                                                                                                                     | `true`                        |
 | E2E_TEST_SERVICE                         | A space separated configuration to control which services should be tested, by default all service specific test are executed                                                                                              | `all services`                |
 | E2E_AUTO_RESOLVE                         | When `true`, the current scope resolver narrows service tests from changed files. Module/profile-aware resolution is tracked separately. | `false` |
@@ -966,12 +964,10 @@ Alternatively the above configurations can be passed to e2e-tests as flags by se
 | --test-dsc-validation                 | To configure the execution of DSCI/DSC validation tests, this is useful to run e2e tests for an operator running in xKS cluster                                                                                            | `true`                        |
 | --test-operator-controller            | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                                                    | `true`                        |
 | --test-operator-resilience            | To configure the execution of operator resilience tests, useful for testing operator fault tolerance scenarios                                                                                                             | `true`                        |
-
 | --test-conversion-webhook             | Explicitly include or exclude conversion webhook scenarios; when omitted, only full OpenShift `All`/`Tier3` suites include them. DSC scenarios delete `default-dsc`. | auto |
 | --test-conversion-webhook-dsc         | Include DSC conversion scenarios when the conversion suite runs. | `true` |
 | --test-conversion-webhook-platform    | Include Platform conversion scenarios when the conversion suite runs. | `true` |
-| --deletion-policy                     | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                                                                 | `always`                      |
-
+| --deletion-policy                     | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`. The low-level default is `always`; `make e2e-test` overrides it to `never`. | `always`                      |
 | --test-services                       | Enable testing of individual services specified by --test-service flag                                                                                                                                                     | `true`                        |
 | --test-service                        | A repeatable (or comma separated no spaces) flag that control which services should be tested, by default all service specific test are executed                                                                           | `all services`                |
 | --test-operator-v2tov3upgrade         | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                                                                        | `true`                        |
@@ -1004,10 +1000,19 @@ make e2e-test -e E2E_TEST_APPLICATIONS_NAMESPACE=<your-custom-app-namespace> -e 
 5. once done with the tests, ensure to clean up the custom namespace
 </details>
 
-Example command to run full test suite skipping the DataScienceCluster deletion (useful to troubleshooting tests failures):
+The default `make e2e-test` flow sets `E2E_TEST_DELETION_POLICY=never` for both its core and DAG invocations, preserving the singleton DSC and DSCI.
+
+Run the deletion suite separately against a prepared OpenShift cluster:
+
+> [!WARNING]
+> This command deletes the singleton `DataScienceCluster/default-dsc` and `DSCInitialization/default-dsci`. Do not run it on a cluster whose DSC or DSCI must be preserved.
 
 ```shell
-make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_DELETION_POLICY=never
+E2E_TEST_DELETION_POLICY=always \
+E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
+make e2e-test-run \
+  E2E_TEST_PROFILE=full \
+  E2E_TEST_FLAGS='-run=^TestOdhOperator/DataScienceCluster/DSCInitialization_Deletion_E2E_Tests$'
 ```
 
 Run only the operator-owned core and synthetic contract:

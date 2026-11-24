@@ -6,12 +6,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e/internal/moduleinventory"
@@ -40,6 +43,160 @@ func TestTentativeModuleAttributionPrecedence(t *testing.T) {
 	assert.True(t, shouldApplyTentativeModuleAttribution("unknown", "kserve"))
 	assert.True(t, shouldApplyTentativeModuleAttribution("product", "kserve"))
 	assert.False(t, shouldApplyTentativeModuleAttribution("product", ""))
+}
+
+func TestDAGClassificationReportWriteGuard(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, shouldWriteDAGClassificationReport(true, false))
+	assert.False(t, shouldWriteDAGClassificationReport(true, true), "a child report must not be overwritten by parent cleanup")
+	assert.False(t, shouldWriteDAGClassificationReport(false, false))
+}
+
+func TestMergeDeploymentEnvVarsPreservesValueFrom(t *testing.T) {
+	t.Parallel()
+
+	desired := corev1.EnvVar{
+		Name: "SECRET_TOKEN",
+		ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "operator-secret"},
+				Key:                  "token",
+			},
+		},
+	}
+	existing := []any{
+		map[string]any{"name": "KEEP", "value": "unchanged"},
+		map[string]any{"name": desired.Name, "value": "temporary"},
+	}
+
+	merged, err := mergeDeploymentEnvVars(existing, []corev1.EnvVar{desired}, map[string]bool{desired.Name: true})
+	require.NoError(t, err)
+
+	var container corev1.Container
+	require.NoError(t, runtime.DefaultUnstructuredConverter.FromUnstructured(
+		map[string]any{"env": merged},
+		&container,
+	))
+	require.Len(t, container.Env, 2)
+	assert.Equal(t, corev1.EnvVar{Name: "KEEP", Value: "unchanged"}, container.Env[0])
+	assert.Equal(t, desired, container.Env[1])
+
+	restored, ok := merged[1].(map[string]any)
+	require.True(t, ok)
+	assert.NotContains(t, restored, "value", "value and valueFrom must not be emitted together")
+	assert.Contains(t, restored, "valueFrom")
+}
+
+func TestCorrelateModuleImagePullFailure(t *testing.T) {
+	t.Parallel()
+
+	const (
+		appsNamespace     = "redhat-ods-applications"
+		operatorNamespace = "redhat-ods-operator"
+		modulePod         = "kserve-controller-abc"
+		operatorPod       = "rhods-operator-abc"
+		moduleContainer   = "manager"
+		operatorContainer = "manager"
+	)
+	moduleDeployments := []moduleDeploymentEvidence{{
+		module:    "kserve",
+		namespace: appsNamespace,
+		selector:  map[string]string{"app": "kserve-controller"},
+	}}
+
+	newReport := func(moduleWaiting string) *clusterhealth.Report {
+		infraWaiting := `ImagePullBackOff manifest unknown: quay.io/platform/operator:missing`
+		return &clusterhealth.Report{
+			Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
+				Data: clusterhealth.PodsSection{
+					ByNamespace: map[string][]clusterhealth.PodInfo{
+						operatorNamespace: {{
+							Namespace: operatorNamespace,
+							Name:      operatorPod,
+							Containers: []clusterhealth.ContainerInfo{{
+								Name:    operatorContainer,
+								Waiting: infraWaiting,
+							}},
+						}},
+						appsNamespace: {{
+							Namespace: appsNamespace,
+							Name:      modulePod,
+							Containers: []clusterhealth.ContainerInfo{{
+								Name:    moduleContainer,
+								Waiting: moduleWaiting,
+							}},
+						}},
+					},
+					Data: []corev1.Pod{
+						{
+							ObjectMeta: metav1.ObjectMeta{Namespace: operatorNamespace, Name: operatorPod, Labels: map[string]string{"app": "operator"}},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{Namespace: appsNamespace, Name: modulePod, Labels: map[string]string{"app": "kserve-controller"}},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name          string
+		moduleWaiting string
+		evidence      string
+		wantModule    string
+		wantInvalid   bool
+	}{
+		{
+			name:          "unrelated infrastructure pull is not attributed to module",
+			moduleWaiting: `ImagePullBackOff Back-off pulling quay.io/kserve/controller:latest`,
+			evidence:      `container rhods-operator-abc/manager waiting: ImagePullBackOff manifest unknown: quay.io/platform/operator:missing`,
+		},
+		{
+			name:          "exact invalid module image is attributed",
+			moduleWaiting: `ErrImagePull manifest unknown: quay.io/kserve/controller:missing`,
+			evidence:      `container kserve-controller-abc/manager waiting: ErrImagePull manifest unknown: quay.io/kserve/controller:missing`,
+			wantModule:    "kserve",
+			wantInvalid:   true,
+		},
+		{
+			name:          "exact transient module pull remains infrastructure",
+			moduleWaiting: `ImagePullBackOff dial tcp: i/o timeout`,
+			evidence:      `container kserve-controller-abc/manager waiting: ImagePullBackOff dial tcp: i/o timeout`,
+			wantModule:    "kserve",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			attribution := correlateModuleImagePullFailure(newReport(tt.moduleWaiting), []string{tt.evidence}, moduleDeployments)
+			assert.Equal(t, tt.wantModule, attribution.module)
+			assert.Equal(t, tt.wantInvalid, attribution.invalidImage)
+		})
+	}
+
+	t.Run("ambiguous pod evidence fails closed", func(t *testing.T) {
+		t.Parallel()
+
+		waiting := `ErrImagePull manifest unknown: quay.io/kserve/controller:missing`
+		report := newReport(waiting)
+		operatorInfo := report.Pods.Data.ByNamespace[operatorNamespace][0]
+		operatorInfo.Name = modulePod
+		operatorInfo.Containers[0].Waiting = waiting
+		report.Pods.Data.ByNamespace[operatorNamespace][0] = operatorInfo
+		report.Pods.Data.Data[0].Name = modulePod
+
+		attribution := correlateModuleImagePullFailure(
+			report,
+			[]string{`container kserve-controller-abc/manager waiting: ErrImagePull manifest unknown: quay.io/kserve/controller:missing`},
+			moduleDeployments,
+		)
+		assert.Empty(t, attribution.module)
+		assert.False(t, attribution.invalidImage)
+	})
 }
 
 func TestModuleHealthFromList(t *testing.T) {

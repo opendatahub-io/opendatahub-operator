@@ -60,10 +60,6 @@ func syntheticModuleTestSuite(t *testing.T) {
 	}
 
 	envSnapshot := ctx.snapshotOperatorEnvVars(t, syntheticModuleEnableEnv, synthetice2e.ControllerImage)
-	ctx.setOperatorEnvVars(t,
-		corev1.EnvVar{Name: syntheticModuleEnableEnv, Value: "true"},
-		corev1.EnvVar{Name: synthetice2e.ControllerImage, Value: controllerImage},
-	)
 	// Cleanup callbacks run in LIFO order: release a held module finalizer first,
 	// then remove platform resources, and restore the operator environment last.
 	// Keeping these independent ensures one cleanup failure does not skip the rest.
@@ -83,6 +79,11 @@ func syntheticModuleTestSuite(t *testing.T) {
 	t.Cleanup(func() {
 		clearSyntheticFaultBestEffort(t, tc)
 	})
+
+	ctx.setOperatorEnvVars(t,
+		corev1.EnvVar{Name: syntheticModuleEnableEnv, Value: "true"},
+		corev1.EnvVar{Name: synthetice2e.ControllerImage, Value: controllerImage},
+	)
 
 	RunTestCases(t, []TestCase{
 		{"Enable known-good synthetic module", func(t *testing.T) {

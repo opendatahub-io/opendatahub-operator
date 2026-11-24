@@ -37,10 +37,11 @@ For OpenShift tests additionally:
 
 The OpenShift E2E suite uses one shared Go harness with separate execution profiles. The default target runs the core and synthetic platform contract first, then invokes the production-module DAG separately.
 
-- **`make e2e-test-xks`** — KServe and gateway service tests on KinD / vanilla Kubernetes.
+- **`make e2e-test-xks`** — xKS-compatible operator and gateway service tests on KinD / vanilla Kubernetes.
   This is the CI-equivalent E2E for KinD (see `.github/workflows/test-kind-odh-e2e.yaml`).
-  Covers KServe module lifecycle, gateway infrastructure (GatewayConfig, kube-auth-proxy,
-  EnvoyFilter), and xKS DAG runlevel gating.
+  The OpenShift-only synthetic module suite is skipped. The DAG suite takes its xKS branch,
+  enabling KServe through the `Platform` CR to exercise runlevel behavior; it does not run
+  the full DSC-based OpenShift production-module DAG.
 
 - **`make e2e-test`** — Run core/synthetic and DAG as separate invocations with a final summary.
 - **`make e2e-test-core`** — Run blocking operator-owned coverage, including the synthetic module contract.
@@ -157,9 +158,10 @@ make e2e-test-xks E2E_TEST_SERVICE=gateway
 
 ## Full E2E on KinD (Experimental)
 
-The standard `e2e-test-xks` target runs KServe, gateway, and xKS DAG ordering tests. It is possible to run the
-broader component E2E suite on KinD with additional setup to bridge the gap between
-KinD and OpenShift.
+The standard `e2e-test-xks` target runs xKS-compatible operator and gateway checks. It skips the
+OpenShift-only synthetic suite, and its DAG coverage is the xKS-specific KServe runlevel scenario through
+`Platform`, not the full DSC-based OpenShift production-module DAG. A broader operator deployment on KinD
+requires additional setup to bridge the gap between KinD and OpenShift.
 
 After completing the standard KinD setup (steps 1–8 above, using `make deploy` instead
 of `make deploy-rhaii-local` — see [Deploying in full mode](#deploying-in-full-mode)):
@@ -256,21 +258,20 @@ kubectl wait --for=jsonpath='{.status.phase}'=Ready dsc/default-dsc --timeout=60
 
 ### Run the tests
 
-```bash
-E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
-E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT=false \
-E2E_TEST_SERVICES=false \
+The former `TestOdhOperator/components/...` hierarchy no longer exists. Use the current `full` profile with
+the xKS DAG test selector instead. All environment assignments below belong to the same `go test` command:
 
-E2E_TEST_OPERATOR_RESILIENCE=false \
-E2E_TEST_OPERATOR_V2TOV3UPGRADE=false \
-E2E_TEST_DSC_MANAGEMENT=false \
-E2E_TEST_DSC_VALIDATION=false \
+```bash
+E2E_TEST_PROFILE=full \
+E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
 E2E_TEST_DELETION_POLICY=never \
-E2E_TEST_OPERATOR_CONTROLLER=false \
 go test ./tests/e2e/ \
-  -run "TestOdhOperator/components/.*/.*/(Validate_(component_enabled|component_conditions|update_operand|operands_have|resource_deletion|argoWorkflow|component_releases))" \
+  -run '^TestOdhOperator/DAG_Ordering_E2E_Tests/Validate_Kserve_DAG_gating_unblocks_via_Platform_CR$' \
   -timeout=60m -v -count=1 -tags odh
 ```
+
+On an xKS cluster, this selector exercises KServe runlevel gating through `Platform`; it is not a replacement
+for the full OpenShift production-module DAG.
 
 ### Known limitations
 
@@ -315,6 +316,7 @@ kubectl patch deployment opendatahub-operator-controller-manager \
    ```
 
 4. **Run separated core and DAG E2E tests**: `make e2e-test`
+   - Both invocations set `E2E_TEST_DELETION_POLICY=never`, so the singleton DSC and DSCI are preserved.
 
 5. **Run a single phase**:
    - `make e2e-test-core`
@@ -322,6 +324,19 @@ kubectl patch deployment opendatahub-operator-controller-manager \
 
 6. **Run a focused synthetic test**:
    `make e2e-test-single TEST="TestOdhOperator/Synthetic_Module_E2E_Tests/Validate_healthy_platform_aggregation"`
+
+7. **Run the deletion suite separately** against a prepared OpenShift cluster:
+
+   > [!WARNING]
+   > This command deletes the singleton `DataScienceCluster/default-dsc` and `DSCInitialization/default-dsci`. Do not run it on a cluster whose DSC or DSCI must be preserved.
+
+   ```bash
+   E2E_TEST_DELETION_POLICY=always \
+   E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
+   make e2e-test-run \
+     E2E_TEST_PROFILE=full \
+     E2E_TEST_FLAGS='-run=^TestOdhOperator/DataScienceCluster/DSCInitialization_Deletion_E2E_Tests$'
+   ```
 
 ### Setting up cluster prerequisites only
 
@@ -418,7 +433,7 @@ done
 | `make kind-setup-pull-secrets` | Configure pull secrets for `registry.redhat.io` |
 | `make deploy-ccm-local-azure` | Deploy Cloud Manager with local image pull policy |
 | `make deploy-rhaii-local` | Deploy operator in XKS mode (KServe module + gateway service enabled) |
-| `make e2e-test-xks` | Run KinD E2E tests (KServe component + gateway service + xKS DAG ordering) |
+| `make e2e-test-xks` | Run xKS-compatible checks; skip synthetic and exercise KServe runlevel behavior through `Platform` instead of the full OpenShift DAG |
 | `make e2e-test` | Run core/synthetic, then the production DAG, with a combined summary |
 | `make e2e-test-core` | Run operator-owned core and synthetic coverage |
 | `make e2e-test-dag` | Run the production-module DAG integration |
@@ -452,7 +467,7 @@ done
 | `E2E_TEST_OPERATOR_CONTROLLER` | `true` | Enable/disable operator controller tests |
 | `E2E_TEST_OPERATOR_V2TOV3UPGRADE` | `true` | Enable/disable v2-to-v3 upgrade tests |
 
-| `E2E_TEST_DELETION_POLICY` | `always` | Deletion policy for test resources (`never`, `always`, `on-failure`) |
+| `E2E_TEST_DELETION_POLICY` | `always` | Low-level deletion policy for test resources (`never`, `always`, `on-failure`); `make e2e-test` overrides it to `never` |
 | `E2E_AUTO_RESOLVE` | `false` | When `true`, narrow currently supported service selection from changed files. Profile/module-aware resolution is planned with the registered-module contract runner. |
 
 ### Path-based test scoping

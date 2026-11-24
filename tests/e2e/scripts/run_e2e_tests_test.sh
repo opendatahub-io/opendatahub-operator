@@ -4,7 +4,9 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
-mkdir -p "$TMP_DIR/bin" "$TMP_DIR/results"
+RESULTS_DIR="$TMP_DIR/results with spaces"
+NO_TEST_RETRY_BIN="$TMP_DIR/no-test-retry-bin"
+mkdir -p "$TMP_DIR/bin" "$RESULTS_DIR" "$NO_TEST_RETRY_BIN"
 
 cat > "$TMP_DIR/bin/gotestsum" <<'EOF'
 #!/bin/bash
@@ -60,7 +62,7 @@ cat > "$TMP_DIR/bin/test-retry" <<'EOF'
 case "${1:-}" in
   verdict)
     shift
-    printf '%s\n' "$*" > "${FAKE_VERDICT_ARGS}"
+    printf '%s\n' "$@" > "${FAKE_VERDICT_ARGS}"
     exit 1
     ;;
   filter-gate-skips)
@@ -75,12 +77,23 @@ EOF
 
 chmod +x "$TMP_DIR/bin/gotestsum" "$TMP_DIR/bin/jq" "$TMP_DIR/bin/go-junit-report" "$TMP_DIR/bin/test-retry"
 
+for tool in cat cp dirname grep mkdir rm; do
+  ln -s "$(command -v "$tool")" "$NO_TEST_RETRY_BIN/$tool"
+done
+for tool in gotestsum jq go-junit-report; do
+  ln -s "$TMP_DIR/bin/$tool" "$NO_TEST_RETRY_BIN/$tool"
+done
+if (PATH="$NO_TEST_RETRY_BIN"; command -v test-retry >/dev/null 2>&1); then
+  echo "isolated PATH unexpectedly resolves test-retry" >&2
+  exit 1
+fi
+
 status=0
 PATH="$TMP_DIR/bin:$PATH" \
 FAKE_TEST_EXIT=7 \
 FAKE_JQ_EXIT=9 \
 FAKE_VERDICT_ARGS="$TMP_DIR/verdict-args" \
-E2E_RESULTS_DIR="$TMP_DIR/results" \
+E2E_RESULTS_DIR="$RESULTS_DIR" \
 E2E_RUN_TIMESTAMP=20261109T102500Z \
 E2E_TEST_WORKBENCHES_NAMESPACE=opendatahub \
 "$SCRIPT_DIR/run_e2e_tests.sh" core || status=$?
@@ -97,11 +110,11 @@ if ! grep -q -- '--core-exit=7' "$TMP_DIR/verdict-args" || ! grep -q -- '--core-
   echo "unexpected verdict arguments: $(cat "$TMP_DIR/verdict-args")" >&2
   exit 1
 fi
-if ! grep -q -- '--output=.*/e2e-summary-20261109T102500Z.json' "$TMP_DIR/verdict-args"; then
-  echo "expected timestamped summary path: $(cat "$TMP_DIR/verdict-args")" >&2
+if ! grep -Fxq -- "--output=$RESULTS_DIR/e2e-summary-20261109T102500Z.json" "$TMP_DIR/verdict-args"; then
+  echo "expected timestamped summary path to remain one argument: $(cat "$TMP_DIR/verdict-args")" >&2
   exit 1
 fi
-if [ ! -s "$TMP_DIR/results/junit-core-20261109T102500Z.xml" ]; then
+if [ ! -s "$RESULTS_DIR/junit-core-20261109T102500Z.xml" ]; then
   echo "expected timestamped core JUnit report" >&2
   exit 1
 fi
@@ -109,14 +122,14 @@ fi
 echo "runner failure-preservation and timestamp test passed"
 
 rm -f "$TMP_DIR/bin/test-retry"
-rm -rf "$TMP_DIR/results"
-mkdir -p "$TMP_DIR/results"
+rm -rf "$RESULTS_DIR"
+mkdir -p "$RESULTS_DIR"
 status=0
-PATH="$TMP_DIR/bin:$PATH" \
+PATH="$NO_TEST_RETRY_BIN" \
 FAKE_CORE_EXIT=0 \
 FAKE_DAG_EXIT=7 \
 FAKE_JQ_EXIT=0 \
-E2E_RESULTS_DIR="$TMP_DIR/results" \
+E2E_RESULTS_DIR="$RESULTS_DIR" \
 E2E_RUN_TIMESTAMP=20261109T103000Z \
 E2E_TEST_WORKBENCHES_NAMESPACE=opendatahub \
 "$SCRIPT_DIR/run_e2e_tests.sh" all || status=$?
@@ -125,8 +138,8 @@ if [ "$status" -ne 7 ]; then
   echo "expected missing-verdict fallback to preserve DAG exit 7, got $status" >&2
   exit 1
 fi
-if [ ! -s "$TMP_DIR/results/junit-core-20261109T103000Z.xml" ] || \
-   [ ! -s "$TMP_DIR/results/junit-dag-20261109T103000Z.xml" ]; then
+if [ ! -s "$RESULTS_DIR/junit-core-20261109T103000Z.xml" ] || \
+   [ ! -s "$RESULTS_DIR/junit-dag-20261109T103000Z.xml" ]; then
   echo "expected both timestamped JUnit reports before missing-verdict fallback" >&2
   exit 1
 fi

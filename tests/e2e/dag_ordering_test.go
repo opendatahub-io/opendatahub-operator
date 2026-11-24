@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlcfg "sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
@@ -52,6 +53,8 @@ import (
 
 type DAGOrderingTestCtx struct {
 	*TestContext
+
+	dagClassificationReportWritten bool
 }
 
 type componentBatch struct {
@@ -350,7 +353,7 @@ func (tc *DAGOrderingTestCtx) runOpenShiftTestCases(t *testing.T) {
 	// Registered after destructive cleanup so LIFO cleanup ordering captures
 	// failure evidence while module CRs and status are still present.
 	t.Cleanup(func() {
-		if t.Failed() {
+		if shouldWriteDAGClassificationReport(t.Failed(), tc.dagClassificationReportWritten) {
 			// Capture diagnostics before the normal cleanup tears down module
 			// Deployments and their failing Pods/events.
 			runDiagnosticsAndClassify("DAG Ordering E2E Tests")
@@ -554,6 +557,14 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 	t.Log("Applying zero-pod quota to block deployments")
 	tc.createDAGQuota()
 	t.Cleanup(tc.deleteDAGQuota)
+	// RunTestCases captures failure diagnostics in a defer before testing runs
+	// child cleanups. Register this after quota cleanup so LIFO ordering writes
+	// the report from that captured state while the quota is still present.
+	t.Cleanup(func() {
+		if shouldWriteDAGClassificationReport(t.Failed(), tc.dagClassificationReportWritten) {
+			writeDAGClassificationReport(t, tc)
+		}
+	})
 
 	// Existing pods survive a new quota. Stop the batch-20 Workbenches
 	// operator so it cannot read the new platformVersion ConfigMap or advance
@@ -1698,19 +1709,9 @@ func (tc *DAGOrderingTestCtx) patchDeploymentEnvVars(t *testing.T, toSet []corev
 				return errors.New("first container is not a map[string]any")
 			}
 			env, _ := container["env"].([]any)
-
-			var filtered []any
-			for _, e := range env {
-				if entry, ok := e.(map[string]any); ok {
-					if name, _ := entry["name"].(string); removeSet[name] {
-						continue
-					}
-				}
-				filtered = append(filtered, e)
-			}
-
-			for _, ev := range toSet {
-				filtered = append(filtered, map[string]any{"name": ev.Name, "value": ev.Value})
+			filtered, err := mergeDeploymentEnvVars(env, toSet, removeSet)
+			if err != nil {
+				return err
 			}
 
 			container["env"] = filtered
@@ -1718,6 +1719,28 @@ func (tc *DAGOrderingTestCtx) patchDeploymentEnvVars(t *testing.T, toSet []corev
 			return unstructured.SetNestedSlice(obj.Object, containers, "spec", "template", "spec", "containers")
 		}),
 	)
+}
+
+func mergeDeploymentEnvVars(existing []any, toSet []corev1.EnvVar, removeSet map[string]bool) ([]any, error) {
+	filtered := make([]any, 0, len(existing)+len(toSet))
+	for _, env := range existing {
+		if entry, ok := env.(map[string]any); ok {
+			if name, _ := entry["name"].(string); removeSet[name] {
+				continue
+			}
+		}
+		filtered = append(filtered, env)
+	}
+
+	for _, env := range toSet {
+		value, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&env)
+		if err != nil {
+			return nil, fmt.Errorf("convert environment variable %q to unstructured: %w", env.Name, err)
+		}
+		filtered = append(filtered, value)
+	}
+
+	return filtered, nil
 }
 
 func envVarNames(envs []corev1.EnvVar) []string {
@@ -1811,11 +1834,12 @@ func writeDAGClassificationReport(t *testing.T, tc *DAGOrderingTestCtx) {
 	possibleModule := firstUnhealthyManagedModule(tc)
 
 	if classification.Subcategory == "image-pull" {
-		module = moduleWithImagePullFailure()
+		attribution := moduleWithImagePullFailure(classification.Evidence)
+		module = attribution.module
 		if module != "" {
 			stage = "deployment"
 			boundary = "platform applied rendered module Deployment"
-			if imageReferenceLooksInvalid(strings.Join(classification.Evidence, " ")) {
+			if attribution.invalidImage {
 				domain = "module-configuration"
 			}
 		}
@@ -1841,7 +1865,12 @@ func writeDAGClassificationReport(t *testing.T, tc *DAGOrderingTestCtx) {
 	require.NoError(t, err, "marshal classified DAG failure report")
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750), "create DAG report directory")                //nolint:gosec
 	require.NoError(t, os.WriteFile(path, append(data, '\n'), 0o600), "write classified DAG failure report") //nolint:gosec
+	tc.dagClassificationReportWritten = true
 	t.Logf("Wrote classified DAG failure report to %s", path)
+}
+
+func shouldWriteDAGClassificationReport(failed, reportWritten bool) bool {
+	return failed && !reportWritten
 }
 
 func shouldApplyTentativeModuleAttribution(category, module string) bool {
@@ -2026,11 +2055,30 @@ func firstUnhealthyManagedModule(tc *DAGOrderingTestCtx) moduleFailureCandidate 
 	return firstUnhealthyRunlevel(moduleHealthEvidence)
 }
 
-func moduleWithImagePullFailure() string {
+type moduleDeploymentEvidence struct {
+	module    string
+	namespace string
+	selector  map[string]string
+}
+
+type moduleImagePullAttribution struct {
+	module       string
+	invalidImage bool
+}
+
+type imagePullSource struct {
+	namespace string
+	pod       string
+	evidence  []string
+}
+
+func moduleWithImagePullFailure(evidence []string) moduleImagePullAttribution {
 	report := lastHealthReport.Load()
 	if report == nil {
-		return ""
+		return moduleImagePullAttribution{}
 	}
+
+	moduleDeployments := make([]moduleDeploymentEvidence, 0)
 	for _, registration := range modulebuiltin.Registrations() {
 		handler := registration.Handler
 		deploymentName := handler.GetName()
@@ -2038,27 +2086,113 @@ func moduleWithImagePullFailure() string {
 			deploymentName = named.GetDeploymentName()
 		}
 		for _, deployment := range report.Deployments.Data.Data {
-			if deployment.Namespace != testOpts.appsNamespace || deployment.Name != deploymentName {
+			if deployment.Namespace != testOpts.appsNamespace || deployment.Name != deploymentName || deployment.Spec.Selector == nil {
 				continue
 			}
-			for _, pod := range report.Pods.Data.Data {
-				if pod.Namespace != deployment.Namespace || !selectorMatches(deployment.Spec.Selector.MatchLabels, pod.Labels) {
+			moduleDeployments = append(moduleDeployments, moduleDeploymentEvidence{
+				module:    handler.GetName(),
+				namespace: deployment.Namespace,
+				selector:  deployment.Spec.Selector.MatchLabels,
+			})
+		}
+	}
+
+	return correlateModuleImagePullFailure(report, evidence, moduleDeployments)
+}
+
+func correlateModuleImagePullFailure(
+	report *clusterhealth.Report,
+	evidence []string,
+	moduleDeployments []moduleDeploymentEvidence,
+) moduleImagePullAttribution {
+	if report == nil || len(evidence) == 0 {
+		return moduleImagePullAttribution{}
+	}
+
+	wantedEvidence := make(map[string]struct{}, len(evidence))
+	for _, item := range evidence {
+		wantedEvidence[item] = struct{}{}
+	}
+
+	sources := make(map[string]*imagePullSource)
+	addSource := func(namespace, pod, item string) {
+		key := namespace + "/" + pod
+		source, found := sources[key]
+		if !found {
+			source = &imagePullSource{namespace: namespace, pod: pod}
+			sources[key] = source
+		}
+		source.evidence = append(source.evidence, item)
+	}
+
+	for namespace, pods := range report.Pods.Data.ByNamespace {
+		for _, pod := range pods {
+			podNamespace := pod.Namespace
+			if podNamespace == "" {
+				podNamespace = namespace
+			}
+			for _, container := range pod.Containers {
+				if !strings.Contains(container.Waiting, "ImagePullBackOff") && !strings.Contains(container.Waiting, "ErrImagePull") {
 					continue
 				}
-				for _, status := range pod.Status.InitContainerStatuses {
-					if status.State.Waiting != nil && (status.State.Waiting.Reason == "ImagePullBackOff" || status.State.Waiting.Reason == "ErrImagePull") {
-						return handler.GetName()
-					}
-				}
-				for _, status := range pod.Status.ContainerStatuses {
-					if status.State.Waiting != nil && (status.State.Waiting.Reason == "ImagePullBackOff" || status.State.Waiting.Reason == "ErrImagePull") {
-						return handler.GetName()
-					}
+				item := fmt.Sprintf("container %s/%s waiting: %s", pod.Name, container.Name, container.Waiting)
+				if _, found := wantedEvidence[item]; found {
+					addSource(podNamespace, pod.Name, item)
 				}
 			}
 		}
 	}
-	return ""
+	for _, event := range report.Events.Data.Events {
+		if event.Kind != "Pod" {
+			continue
+		}
+		item := fmt.Sprintf("event %s/%s: %s - %s", event.Kind, event.Name, event.Reason, event.Message)
+		if _, found := wantedEvidence[item]; found {
+			addSource(event.Namespace, event.Name, item)
+		}
+	}
+
+	if len(sources) != 1 {
+		return moduleImagePullAttribution{}
+	}
+	var source *imagePullSource
+	for _, candidate := range sources {
+		source = candidate
+	}
+
+	var matchedPod *corev1.Pod
+	for i := range report.Pods.Data.Data {
+		pod := &report.Pods.Data.Data[i]
+		if pod.Namespace != source.namespace || pod.Name != source.pod {
+			continue
+		}
+		if matchedPod != nil {
+			return moduleImagePullAttribution{}
+		}
+		matchedPod = pod
+	}
+	if matchedPod == nil {
+		return moduleImagePullAttribution{}
+	}
+
+	var matchedModule string
+	for _, deployment := range moduleDeployments {
+		if deployment.namespace != matchedPod.Namespace || !selectorMatches(deployment.selector, matchedPod.Labels) {
+			continue
+		}
+		if matchedModule != "" {
+			return moduleImagePullAttribution{}
+		}
+		matchedModule = deployment.module
+	}
+	if matchedModule == "" {
+		return moduleImagePullAttribution{}
+	}
+
+	return moduleImagePullAttribution{
+		module:       matchedModule,
+		invalidImage: imageReferenceLooksInvalid(strings.Join(source.evidence, " ")),
+	}
 }
 
 func selectorMatches(selector, labels map[string]string) bool {

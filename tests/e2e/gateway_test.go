@@ -417,7 +417,7 @@ func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 	tc.SkipIfBYOIDC(t)
 	originalGateway, err := tc.getGateway(ctx)
 	require.NoError(t, err)
-	backendFixture := tc.deployDefaultGatewayBackendFixture(t, false)
+	authRedirectFixture := tc.deployDefaultGatewayBackendFixture(t, false)
 	defaultRouteKey := types.NamespacedName{Name: tc.gatewayName(), Namespace: tc.gatewayNamespace()}
 	defaultRoute := &routev1.Route{}
 	require.NoError(t, tc.Client().Get(ctx, defaultRouteKey, defaultRoute))
@@ -432,9 +432,10 @@ func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 		Namespace: tc.gatewayNamespace(),
 	}
 	require.NoError(t, tc.Client().Get(ctx, defaultAuthKey, defaultAuthDeployment))
-	checkDefault := func() {
-		tc.assertDefaultGatewayContinuity(ctx, t, originalGateway.UID, defaultRouteUID, backendFixture.url)
-		tc.assertGatewayBackendFixtureUnchanged(ctx, t, backendFixture)
+	checkDefaultAuthRedirectAndConfigContinuity := func() {
+		tc.assertDefaultGatewayAuthRedirectAndConfigContinuity(
+			ctx, t, originalGateway.UID, defaultRouteUID, authRedirectFixture,
+		)
 		currentRoute := &routev1.Route{}
 		g.Expect(tc.Client().Get(ctx, defaultRouteKey, currentRoute)).To(Succeed())
 		g.Expect(currentRoute.Spec).To(Equal(defaultRoute.Spec))
@@ -491,17 +492,17 @@ func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 		})).To(Succeed())
 	}
 
-	// Default-only baseline: the redirect and default resource identity must hold before
-	// any additional ingress exists, so a pre-existing default-path failure is not
-	// misattributed to the first ingress.
-	checkDefault()
+	// Default-only baseline: the auth redirect and default resource configuration must
+	// hold before any additional ingress exists, so a pre-existing default-path failure
+	// is not misattributed to the first ingress.
+	checkDefaultAuthRedirectAndConfigContinuity()
 
 	spec := original.Spec
 	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{alpha}
 	update(spec.AdditionalIngresses)
 	tc.validateAdditionalGatewayAndRoute(t, alpha)
 	tc.validateAdditionalGatewayStatus(t, 1, alpha.Name, alpha.Hostname)
-	checkDefault()
+	checkDefaultAuthRedirectAndConfigContinuity()
 
 	g.Expect(authHTTPRoute.Spec.ParentRefs).NotTo(BeEmpty())
 	g.Expect(authHTTPRoute.Spec.ParentRefs[0].Name).To(Equal(gwapiv1.ObjectName(gateway.GetDefaultGatewayName())))
@@ -513,7 +514,7 @@ func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 	tc.validateAdditionalGatewayAndRoute(t, beta)
 	tc.validateAdditionalGatewayStatus(t, 2, alpha.Name, alpha.Hostname)
 	tc.validateAdditionalGatewayStatus(t, 2, beta.Name, beta.Hostname)
-	checkDefault()
+	checkDefaultAuthRedirectAndConfigContinuity()
 
 	alphaRouteKey := types.NamespacedName{
 		Name: alpha.Name, Namespace: tc.gatewayNamespace(),
@@ -524,7 +525,7 @@ func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 	validateAdditionalIngressRouteSelectorChange(t, tc, ingressControllerKey, alphaRouteKey,
 		alpha.Hostname, currentConfig.Generation)
 
-	checkDefault()
+	checkDefaultAuthRedirectAndConfigContinuity()
 
 	defaultGateway, err := tc.getGateway(ctx)
 	g.Expect(err).NotTo(HaveOccurred())
@@ -543,7 +544,7 @@ func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 	g.Eventually(func() bool {
 		return k8serr.IsNotFound(tc.Client().Get(ctx, alphaRouteKey, &routev1.Route{}))
 	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
-	checkDefault()
+	checkDefaultAuthRedirectAndConfigContinuity()
 
 	spec.AdditionalIngresses = nil
 	update(spec.AdditionalIngresses)
@@ -566,7 +567,7 @@ func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 		)),
 		WithCustomErrorMsg("GatewayConfig should remove additional ingress status entries"),
 	)
-	checkDefault()
+	checkDefaultAuthRedirectAndConfigContinuity()
 }
 
 // ValidateAdditionalGatewayLifecycle exercises mutation and recovery of additional ingresses
@@ -592,18 +593,19 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayLifecycle(t *testing.T) {
 	tc.SkipIfBYOIDC(t)
 	originalGateway, err := tc.getGateway(ctx)
 	require.NoError(t, err)
-	backendFixture := tc.deployDefaultGatewayBackendFixture(t, false)
+	authRedirectFixture := tc.deployDefaultGatewayBackendFixture(t, false)
 	defaultRouteKey := types.NamespacedName{Name: tc.gatewayName(), Namespace: tc.gatewayNamespace()}
 	defaultRoute := &routev1.Route{}
 	require.NoError(t, tc.Client().Get(ctx, defaultRouteKey, defaultRoute))
 	defaultRouteUID := defaultRoute.UID
 	require.NotEmpty(t, defaultRoute.Spec.Host)
-	checkDefault := func() {
-		tc.assertDefaultGatewayContinuity(ctx, t, originalGateway.UID, defaultRouteUID, backendFixture.url)
-		tc.assertGatewayBackendFixtureUnchanged(ctx, t, backendFixture)
+	checkDefaultAuthRedirectAndConfigContinuity := func() {
+		tc.assertDefaultGatewayAuthRedirectAndConfigContinuity(
+			ctx, t, originalGateway.UID, defaultRouteUID, authRedirectFixture,
+		)
 	}
-	// Default-only baseline before any additional ingress exists.
-	checkDefault()
+	// Default-only auth-redirect and configuration baseline before any additional ingress exists.
+	checkDefaultAuthRedirectAndConfigContinuity()
 
 	suffix := fmt.Sprintf("%x", time.Now().UnixNano())
 	alphaControllerName := "e2e-life-alpha-" + suffix
@@ -673,7 +675,7 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayLifecycle(t *testing.T) {
 	tc.validateAdditionalGatewayStatus(t, 2, beta.Name, beta.Hostname)
 	validateAdditionalIngressRouteAdmissionStatus(t, tc, alphaRouteKey, alpha.Name, alpha.Hostname, alphaControllerName)
 	validateAdditionalIngressRouteAdmissionStatus(t, tc, betaRouteKey, beta.Name, beta.Hostname, betaControllerName)
-	checkDefault()
+	checkDefaultAuthRedirectAndConfigContinuity()
 
 	// A hostname update retargets the bridge Route in place: same Route object, new host,
 	// status reconverges, and the default path is untouched.
@@ -699,7 +701,7 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayLifecycle(t *testing.T) {
 	tc.validateAdditionalGatewayAndRoute(t, renamed)
 	tc.validateAdditionalGatewayStatus(t, 2, renamed.Name, renamed.Hostname)
 	validateAdditionalIngressRouteAdmissionStatus(t, tc, alphaRouteKey, renamed.Name, renamed.Hostname, alphaControllerName)
-	checkDefault()
+	checkDefaultAuthRedirectAndConfigContinuity()
 
 	// Failure isolation: alpha's shard stops matching its Route, so alpha is rejected
 	// while beta stays admitted and the default hostname keeps redirecting.
@@ -729,7 +731,7 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayLifecycle(t *testing.T) {
 	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
 	tc.validateAdditionalGatewayStatus(t, 2, renamed.Name, renamed.Hostname)
 	tc.validateAdditionalGatewayStatus(t, 2, beta.Name, beta.Hostname)
-	checkDefault()
+	checkDefaultAuthRedirectAndConfigContinuity()
 
 	// Restoring the selector brings alpha back.
 	updateAdditionalIngressRouteSelector(t, tc, alphaControllerKey, &metav1.LabelSelector{MatchLabels: alpha.RouteLabels})
@@ -766,7 +768,7 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayLifecycle(t *testing.T) {
 	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
 	validateAdditionalIngressRouteAdmissionStatus(t, tc, alphaRouteKey, renamed.Name, renamed.Hostname, alphaControllerName)
 	tc.validateAdditionalGatewayStatus(t, 2, renamed.Name, renamed.Hostname)
-	checkDefault()
+	checkDefaultAuthRedirectAndConfigContinuity()
 
 	// Removal and orphan verification run in the restore cleanup.
 }
@@ -889,10 +891,15 @@ func (tc *GatewayTestCtx) validateAdditionalGatewayAndRoute(t *testing.T, ingres
 	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
 }
 
-func (tc *GatewayTestCtx) assertDefaultGatewayContinuity(
-	ctx context.Context, t *testing.T, gatewayUID, routeUID types.UID, targetURL string,
+// assertDefaultGatewayAuthRedirectAndConfigContinuity verifies that the default
+// Gateway and Route retain their identities, the fixture HTTPRoute retains its
+// configuration, and an unauthenticated request is intercepted by the auth
+// layer. It deliberately does not assert authenticated backend reachability.
+func (tc *GatewayTestCtx) assertDefaultGatewayAuthRedirectAndConfigContinuity(
+	ctx context.Context, t *testing.T, gatewayUID, routeUID types.UID, fixture *gatewayBackendFixture,
 ) {
 	t.Helper()
+	tc.assertGatewayBackendFixtureUnchanged(ctx, t, fixture)
 	g := NewWithT(t)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
@@ -910,7 +917,7 @@ func (tc *GatewayTestCtx) assertDefaultGatewayContinuity(
 	g.Eventually(func() error {
 		requestCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, targetURL, nil)
+		request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, fixture.url, nil)
 		if err != nil {
 			return err
 		}

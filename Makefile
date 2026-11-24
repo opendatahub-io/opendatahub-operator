@@ -760,7 +760,7 @@ unit-test-e2e-installation: ## Run cluster-free tests for OLM operator installat
 .PHONY: unit-test-e2e-orchestration
 unit-test-e2e-orchestration: ## Cluster-free checks for E2E profiles, DAG attribution, verdict policy, and container runner exit handling.
 	go -C cmd/test-retry test ./pkg/verdict ./pkg/cli
-	go test ./tests/e2e/ -run 'Test(DAGReportStatusExtraction|TentativeModuleAttributionPrecedence|ModuleHealthFromList|ModuleInstallationHealthStages|FirstUnhealthyRunlevelIgnoresBlockedLaterRunlevels|FirstUnhealthyRunlevelRequiresUnambiguousFailure|ExpectsModuleCRDocumentsOnlyException|RegisteredModulesDeclareControllerDeploymentName|DAGInventoryCoversRegisteredProductionModules|ApplyTestProfile)$$'
+	go test ./tests/e2e/ -run 'Test(DAGReportStatusExtraction|TentativeModuleAttributionPrecedence|DAGClassificationReportWriteGuard|MergeDeploymentEnvVarsPreservesValueFrom|CorrelateModuleImagePullFailure|ModuleHealthFromList|ModuleInstallationHealthStages|FirstUnhealthyRunlevelIgnoresBlockedLaterRunlevels|FirstUnhealthyRunlevelRequiresUnambiguousFailure|ExpectsModuleCRDocumentsOnlyException|RegisteredModulesDeclareControllerDeploymentName|DAGInventoryCoversRegisteredProductionModules|NetworkPolicyCurlProbeClassification|ApplyTestProfile|ClearDAGReportForAttempt)$$'
 	bash tests/e2e/scripts/run_e2e_tests_test.sh
 
 # Pattern rule to generate .rules.yaml from PrometheusRule templates
@@ -853,33 +853,48 @@ e2e-artifacts-clean:
 # when an explicit report attributes every failure to module configuration.
 e2e-test: e2e-artifacts-clean
 	@set +e; \
+	repo_path() { \
+		case "$$1" in \
+			/*) printf '%s\n' "$$1" ;; \
+			*) printf '%s/%s\n' "$(CURDIR)" "$$1" ;; \
+		esac; \
+	}; \
+	summary_path="$(E2E_SUMMARY_PATH)"; \
+	if [ -n "$$summary_path" ]; then summary_path=$$(repo_path "$$summary_path"); fi; \
+	dag_report_path="$(E2E_DAG_REPORT_PATH)"; \
+	if [ -n "$$dag_report_path" ]; then dag_report_path=$$(repo_path "$$dag_report_path"); fi; \
 	$(MAKE) e2e-test-core; core_status=$$?; \
 	if [ $$core_status -ne 0 ]; then \
-		go run -C ./cmd/test-retry . verdict --core-exit=$$core_status --dag-exit=-1 $(if $(E2E_SUMMARY_PATH),--output=$(E2E_SUMMARY_PATH)) || true; \
+		verdict_args=(verdict "--core-exit=$$core_status" --dag-exit=-1); \
+		if [ -n "$$summary_path" ]; then verdict_args+=("--output=$$summary_path"); fi; \
+		go run -C ./cmd/test-retry . "$${verdict_args[@]}" || true; \
 		exit $$core_status; \
 	fi; \
 	$(MAKE) e2e-test-dag; dag_status=$$?; \
+	verdict_args=(verdict --core-exit=0 "--dag-exit=$$dag_status"); \
+	if [ -n "$$dag_report_path" ]; then verdict_args+=("--dag-report=$$dag_report_path"); fi; \
+	if [ -n "$$summary_path" ]; then verdict_args+=("--output=$$summary_path"); fi; \
 	verdict_status=0; \
-	go run -C ./cmd/test-retry . verdict --core-exit=0 --dag-exit=$$dag_status $(if $(E2E_DAG_REPORT_PATH),--dag-report=$(E2E_DAG_REPORT_PATH)) $(if $(E2E_SUMMARY_PATH),--output=$(E2E_SUMMARY_PATH)) || verdict_status=$$?; \
+	go run -C ./cmd/test-retry . "$${verdict_args[@]}" || verdict_status=$$?; \
 	exit $$verdict_status
 
 # Core leaves DSC/DSCI in place for the following DAG invocation.
 e2e-test-core: e2e-artifacts-init
 	@$(MAKE) e2e-test-run \
-		-e E2E_TEST_PROFILE=core \
-		-e E2E_TEST_DELETION_POLICY=never \
-		$(if $(ARTIFACT_DIR),-e JUNIT_OUTPUT_PATH=$(ARTIFACT_DIR)/junit-core-$(E2E_RUN_TIMESTAMP).xml)
+		-e "E2E_TEST_PROFILE=core" \
+		-e "E2E_TEST_DELETION_POLICY=never" \
+		$(if $(ARTIFACT_DIR),-e "JUNIT_OUTPUT_PATH=$(ARTIFACT_DIR)/junit-core-$(E2E_RUN_TIMESTAMP).xml")
 
 # DAG reuses the baseline established by core when present, creates DSCI/DSC
 # when invoked directly, and owns module cleanup.
 e2e-test-dag: e2e-artifacts-init
 	@rm -f "$(E2E_DAG_REPORT_PATH)"
 	@$(MAKE) e2e-test-run \
-		-e E2E_TEST_PROFILE=dag \
-		$(if $(E2E_DAG_REPORT_PATH),-e E2E_DAG_REPORT_PATH=$(E2E_DAG_REPORT_PATH)) \
-		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
-		-e E2E_TEST_DELETION_POLICY=never \
-		$(if $(ARTIFACT_DIR),-e JUNIT_OUTPUT_PATH=$(ARTIFACT_DIR)/junit-dag-$(E2E_RUN_TIMESTAMP).xml)
+		-e "E2E_TEST_PROFILE=dag" \
+		$(if $(E2E_DAG_REPORT_PATH),-e "E2E_DAG_REPORT_PATH=$(E2E_DAG_REPORT_PATH)") \
+		-e "E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false" \
+		-e "E2E_TEST_DELETION_POLICY=never" \
+		$(if $(ARTIFACT_DIR),-e "JUNIT_OUTPUT_PATH=$(ARTIFACT_DIR)/junit-dag-$(E2E_RUN_TIMESTAMP).xml")
 # Path-based e2e test scoping (cmd/manifest-tools' resolve-e2e-scope subcommand)
 # runs and logs its service decision whenever E2E_TEST_SERVICE is unset. Only
 # when E2E_AUTO_RESOLVE=true does it narrow what actually runs; otherwise it only logs.
@@ -927,7 +942,9 @@ e2e-test-run:
 			echo "SELECTIVE-E2E: could not resolve affected services -- running full suite"; \
 		fi; \
 	fi; \
-	go run -C ./cmd/test-retry main.go e2e --verbose --max-retries=$(E2E_TESTING_MAX_RETRIES) --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
+	junit_output_args=(); \
+	if [ -n "$${JUNIT_OUTPUT_PATH:-}" ]; then junit_output_args+=("--junit-output=$${JUNIT_OUTPUT_PATH}"); fi; \
+	go run -C ./cmd/test-retry main.go e2e --verbose --max-retries=$(E2E_TESTING_MAX_RETRIES) --working-dir="$(CURDIR)" "$${junit_output_args[@]}" -- ${E2E_TEST_FLAGS}
 
 .PHONY: e2e-test-single
 e2e-test-single:
@@ -960,7 +977,6 @@ e2e-test-xks: ## Run e2e tests on external Kubernetes (KinD, AKS, CoreWeave, etc
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
 		-e E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT=false \
 		-e E2E_TEST_CONVERSION_WEBHOOK=false \
-
 		-e E2E_TEST_SERVICES=true \
 		-e E2E_TEST_SERVICE="gateway" \
 		-e E2E_TEST_OPERATOR_RESILIENCE=false \

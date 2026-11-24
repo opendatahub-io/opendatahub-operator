@@ -102,20 +102,13 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicyIngressTraffic(t *testing.T) {
 				Name:    "probe",
 				Image:   authProxyTrafficProbeImage,
 				Command: []string{"/bin/sh", "-c"},
-				Args: []string{`
-set -eu
+				Args: []string{networkPolicyCurlProbeShell + `
 if ! curl --noproxy '*' -ksS --connect-timeout 5 --max-time 10 -o /dev/null https://kubernetes.default.svc/version; then
   echo 'control request to Kubernetes API failed' > /dev/termination-log
   exit 1
 fi
 for url in "$PROXY_HTTPS_URL" "$PROXY_HTTP_URL" "$PROXY_METRICS_URL"; do
-  output="$(curl --noproxy '*' -kv --connect-timeout 5 --max-time 8 -o /dev/null "$url" 2>&1)" || true
-  case "$output" in
-    *'Connected to '*)
-      echo "unexpected TCP connection to $url" > /dev/termination-log
-      exit 1
-      ;;
-  esac
+  network_policy_expect_connection_denied "$url"
 done
 echo 'API control connected; all proxy ports denied' > /dev/termination-log
 `},

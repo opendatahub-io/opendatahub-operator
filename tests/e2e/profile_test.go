@@ -1,11 +1,51 @@
 package e2e_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestClearDAGReportForAttempt(t *testing.T) {
+	t.Run("DAG profile removes a stale report", func(t *testing.T) {
+		reportPath := filepath.Join(t.TempDir(), "artifacts with spaces", "dag report.json")
+		require.NoError(t, os.MkdirAll(filepath.Dir(reportPath), 0o750))
+		require.NoError(t, os.WriteFile(reportPath, []byte("stale"), 0o600))
+
+		require.NoError(t, clearDAGReportForAttempt(ProfileDAG, reportPath))
+		assert.NoFileExists(t, reportPath)
+	})
+
+	t.Run("DAG profile accepts a missing report", func(t *testing.T) {
+		reportPath := filepath.Join(t.TempDir(), "missing.json")
+		require.NoError(t, clearDAGReportForAttempt(ProfileDAG, reportPath))
+	})
+
+	t.Run("non-DAG profile preserves the report", func(t *testing.T) {
+		reportPath := filepath.Join(t.TempDir(), "dag-report.json")
+		require.NoError(t, os.WriteFile(reportPath, []byte("current"), 0o600))
+
+		require.NoError(t, clearDAGReportForAttempt(ProfileCore, reportPath))
+		assert.FileExists(t, reportPath)
+	})
+
+	t.Run("empty path is ignored", func(t *testing.T) {
+		require.NoError(t, clearDAGReportForAttempt(ProfileDAG, ""))
+	})
+
+	t.Run("removal errors are returned", func(t *testing.T) {
+		reportPath := filepath.Join(t.TempDir(), "non-empty-report-directory")
+		require.NoError(t, os.Mkdir(reportPath, 0o750))
+		require.NoError(t, os.WriteFile(filepath.Join(reportPath, "report.json"), []byte("stale"), 0o600))
+
+		err := clearDAGReportForAttempt(ProfileDAG, reportPath)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "clear stale DAG report")
+	})
+}
 
 func TestApplyTestProfile(t *testing.T) {
 	originalOpts := testOpts
