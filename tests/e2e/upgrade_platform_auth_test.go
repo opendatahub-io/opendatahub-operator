@@ -553,10 +553,11 @@ func TestPreUpgradeCredentialsSecretExists(t *testing.T) {
 	require.NotNil(t, credentialsSecret)
 
 	// Key names and emptiness only: values are compared as digests and must
-	// never reach a failure message (CWE-532).
+	// never reach a failure message (CWE-532). requireSecretKeyPresent
+	// never hands the Data map itself to testify, which would render the
+	// raw values on failure.
 	for _, key := range upgradeCredentialsSecretKeys {
-		require.Contains(t, credentialsSecret.Data, key,
-			"credentials Secret %s/%s should carry key %s", upgradeAuthNamespace, upgradeCredentialsSecretName, key)
+		requireSecretKeyPresent(t, credentialsSecret.Data, key, upgradeAuthNamespace, upgradeCredentialsSecretName)
 		require.NotEmpty(t, credentialsSecret.Data[key],
 			"credentials Secret %s/%s key %s should be non-empty", upgradeAuthNamespace, upgradeCredentialsSecretName, key)
 	}
@@ -618,6 +619,75 @@ func TestPreUpgradeKubeAuthProxyAvailable(t *testing.T) {
 		"should save the platform-auth baseline ConfigMap %s/%s", upgradeBaselineNamespace, upgradeBaselineCMName)
 	t.Logf("captured %d platform-auth baseline entries into ConfigMap %s/%s",
 		len(platformAuthBaseline), upgradeBaselineNamespace, upgradeBaselineCMName)
+}
+
+// failureRecorder captures testify failure output instead of writing it to
+// the real test log, so a unit test can assert on what would have been
+// rendered without leaking anything itself.
+type failureRecorder struct {
+	failures []string
+}
+
+func (r *failureRecorder) Errorf(format string, args ...any) {
+	r.failures = append(r.failures, fmt.Sprintf(format, args...))
+}
+
+func (r *failureRecorder) FailNow() {}
+
+// secretKeyNames returns the sorted key names of a Secret's Data map — names
+// only, never values, so they are safe to render in failure messages.
+func secretKeyNames(data map[string][]byte) []string {
+	keys := make([]string, 0, len(data))
+	for key := range data {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	return keys
+}
+
+// requireSecretKeyPresent asserts data carries key WITHOUT ever passing data
+// itself to testify: assertion helpers render their arguments on failure,
+// and rendering a Secret's Data map would print every raw value into the
+// test log (CWE-532). The failure message names the wanted key and the
+// actual key names only.
+func requireSecretKeyPresent(t require.TestingT, data map[string][]byte, key, namespace, name string) {
+	_, present := data[key]
+	require.True(t, present,
+		"Secret %s/%s should carry key %s; actual keys: %v",
+		namespace, name, key, secretKeyNames(data))
+}
+
+// TestRequireSecretKeyPresentDoesNotLeakValues pins the CWE-532 guard of the
+// credentials-Secret key check: on a missing key the failure must render the
+// wanted key and the actual key names, and must never contain any value
+// bytes from the Secret's Data. The bug it guards against: require.Contains
+// renders its map argument on failure, printing raw secret values.
+func TestRequireSecretKeyPresentDoesNotLeakValues(t *testing.T) {
+	data := map[string][]byte{
+		"client-secret": []byte("RAW-CLIENT-SECRET-VALUE"),
+		"cookie-secret": []byte("RAW-COOKIE-SECRET-VALUE"),
+	}
+
+	recorder := &failureRecorder{}
+	requireSecretKeyPresent(recorder, data, "missing-key", "test-ns", "test-secret")
+
+	require.NotEmpty(t, recorder.failures, "a missing key must fail the check")
+	rendered := strings.Join(recorder.failures, "\n")
+	require.Contains(t, rendered, "missing-key")
+	require.Contains(t, rendered, "client-secret", "key names are safe to render")
+	// A rendered Data map leaks the values in either form: as the ASCII
+	// string (fmt %%s/%%v of a string conversion) or as the hex byte
+	// sequence %#v produces for []byte (0x52, 0x41, ... — the raw value,
+	// merely encoded). Neither may appear.
+	require.NotContains(t, rendered, "RAW-CLIENT-SECRET-VALUE")
+	require.NotContains(t, rendered, "RAW-COOKIE-SECRET-VALUE")
+	require.NotContains(t, rendered, "[]uint8{", "the Data map itself must never be rendered")
+
+	t.Run("present key passes without failing", func(t *testing.T) {
+		recorder := &failureRecorder{}
+		requireSecretKeyPresent(recorder, data, "cookie-secret", "test-ns", "test-secret")
+		require.Empty(t, recorder.failures)
+	})
 }
 
 // PostUpgrade phase: the seven preservation tests. Each loads the baseline
@@ -1020,11 +1090,7 @@ func TestPostUpgradeCredentialsSecretKeysPreserved(t *testing.T) {
 
 	// Key names only: values are compared as digests elsewhere and must
 	// never reach a failure message (CWE-532).
-	currentKeys := make([]string, 0, len(credentialsSecret.Data))
-	for key := range credentialsSecret.Data {
-		currentKeys = append(currentKeys, key)
-	}
-	slices.Sort(currentKeys)
+	currentKeys := secretKeyNames(credentialsSecret.Data)
 
 	baselineKeys := make([]string, 0, len(upgradeCredentialsSecretKeys))
 	for _, key := range upgradeCredentialsSecretKeys {
