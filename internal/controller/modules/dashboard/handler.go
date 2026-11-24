@@ -30,9 +30,11 @@ const (
 	// AI Pipelines. Keep in sync with dashboard-operator's component name for DSP.
 	dashboardAIPipelinesName = "aipipelines"
 
-	namespacedRBACOptInLabel  = "dashboard.opendatahub.io/allow-namespaced-rbac"
-	operatorNamespaceEnv      = "OPERATOR_NAMESPACE"
-	operatorServiceAccountEnv = "OPERATOR_SERVICE_ACCOUNT"
+	namespacedRBACOptInLabel        = "dashboard.opendatahub.io/allow-namespaced-rbac"
+	namespacedRBACManagedAnnotation = "dashboard.opendatahub.io/namespaced-rbac-managed-by"
+	namespacedRBACManagedValue      = "opendatahub-operator"
+	operatorNamespaceEnv            = "OPERATOR_NAMESPACE"
+	operatorServiceAccountEnv       = "OPERATOR_SERVICE_ACCOUNT"
 )
 
 type handler struct {
@@ -54,7 +56,10 @@ func NewHandler() *handler {
 					// ReleaseName for module env injection (deploymentNameFromManifests).
 					"namePrefix": "",
 					"webhook": map[string]any{
-						"enabled":               true,
+						// Keep the webhook disabled until the coordinated dashboard-operator
+						// image/chart rollout lands in odh-dashboard#10716. The consent labels
+						// are prepared now and become effective with that rollout.
+						"enabled":               false,
 						"namespacedRBACWriters": namespacedRBACWriterUsernames(),
 						"certManager":           map[string]any{"enabled": true},
 					},
@@ -183,13 +188,32 @@ func SyncNamespacedRBACOptIns(ctx context.Context, cli client.Client, dscCtx *mo
 		}
 		desiredSet[name] = struct{}{}
 	}
+	managed := map[string]*corev1.Namespace{}
+	var managedNamespaces corev1.NamespaceList
+	if err := cli.List(ctx, &managedNamespaces, client.MatchingLabels{namespacedRBACManagedAnnotation: namespacedRBACManagedValue}); err != nil {
+		return fmt.Errorf("listing dashboard-managed namespaced RBAC targets: %w", err)
+	}
+	for i := range managedNamespaces.Items {
+		namespace := &managedNamespaces.Items[i]
+		managed[namespace.Name] = namespace
+	}
 	for i := range optedIn.Items {
 		namespace := &optedIn.Items[i]
 		if _, keep := desiredSet[namespace.Name]; keep {
 			continue
 		}
+		if namespace.Annotations[namespacedRBACManagedAnnotation] != namespacedRBACManagedValue {
+			continue
+		}
+		managed[namespace.Name] = namespace
+	}
+	for _, namespace := range managed {
+		if _, keep := desiredSet[namespace.Name]; keep {
+			continue
+		}
 		before := namespace.DeepCopy()
 		delete(namespace.Labels, namespacedRBACOptInLabel)
+		delete(namespace.Annotations, namespacedRBACManagedAnnotation)
 		if err := cli.Patch(ctx, namespace, client.MergeFrom(before)); err != nil {
 			return fmt.Errorf("removing dashboard namespaced RBAC opt-in from namespace %s: %w", namespace.Name, err)
 		}
@@ -200,6 +224,9 @@ func SyncNamespacedRBACOptIns(ctx context.Context, cli client.Client, dscCtx *mo
 // NamespacedRBACTargets returns the namespaces projected into the Dashboard CR.
 func NamespacedRBACTargets(dscCtx *modules.DSCContext, cfg *modules.ModuleCRConfig) []string {
 	if dscCtx == nil || dscCtx.DSC == nil {
+		return nil
+	}
+	if dscCtx.DSC.Spec.Components.Dashboard.Standard.ManagementState != operatorv1.Managed {
 		return nil
 	}
 	return []string{resolveNotebooksNamespace(dscCtx, cfg), resolveAIHubNamespace(dscCtx)}
@@ -237,7 +264,11 @@ func ensureNamespacedRBACOptIn(ctx context.Context, cli client.Client, namespace
 		if namespace.Labels == nil {
 			namespace.Labels = map[string]string{}
 		}
+		if namespace.Annotations == nil {
+			namespace.Annotations = map[string]string{}
+		}
 		namespace.Labels[namespacedRBACOptInLabel] = "true"
+		namespace.Annotations[namespacedRBACManagedAnnotation] = namespacedRBACManagedValue
 		if err := cli.Patch(ctx, namespace, client.MergeFrom(before)); err != nil {
 			return fmt.Errorf("opting namespace %s in to dashboard namespaced RBAC: %w", name, err)
 		}

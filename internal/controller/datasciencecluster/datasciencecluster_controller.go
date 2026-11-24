@@ -102,8 +102,11 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		WithAction(cleanupDisabledComponents).
 		WithAction(cleanupDisabledModuleCRs).
 		WithAction(provisionComponents).
-		WithAction(syncDashboardNamespacedRBACOptIns).
 		WithAction(provisionModuleCRs).
+		// Namespace consent is synchronized after module CR provisioning so a
+		// transient Namespace/webhook failure cannot prevent the Dashboard CR
+		// from being created or restored. Namespace watches retry this action.
+		WithAction(syncDashboardNamespacedRBACOptIns).
 		WithAction(deploy.NewAction(
 			deploy.WithContinueOnError(),
 			deploy.WithCache(),

@@ -25,6 +25,13 @@ func TestWatchDashboardNamespacedRBACTargets(t *testing.T) {
 	dsc := &dscApi.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "default-dsc"},
 		Spec: dscApi.DataScienceClusterSpec{Components: dscApi.Components{
+			Dashboard: componentApi.DSCDashboard{
+				DashboardCommonSpec: componentApi.DashboardCommonSpec{
+					Standard: componentApi.DashboardStandardSpec{
+						ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+					},
+				},
+			},
 			Workbenches: componentApi.DSCWorkbenches{
 				ManagementSpec:        common.ManagementSpec{ManagementState: operatorv1.Managed},
 				WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{WorkbenchNamespace: "target-notebooks"},
