@@ -83,17 +83,13 @@ Note: The core framework coverage of 71.9% is partially due to `manifests_compli
 
 ### End-to-End (cluster-based)
 
-E2E tests in `tests/e2e/` exercise the full module lifecycle (provision, update, removal) on a live cluster. These run via `make e2e-test` on OpenShift or `make e2e-test-xks` on KinD/AKS. Key module E2E test files:
+E2E tests in `tests/e2e/` exercise module lifecycle behavior on a live cluster. OpenShift runs use `make e2e-test`. The `make e2e-test-xks` target skips the OpenShift-only synthetic suite and runs the xKS DAG branch, which exercises KServe runlevel behavior through the `Platform` CR rather than the full DSC-based OpenShift production-module DAG. Current module E2E entrypoints and inventory are:
 
-- `tests/e2e/data_module_test.go`
-- `tests/e2e/aigateway_test.go`
-- `tests/e2e/dashboard_test.go`
-- `tests/e2e/kserve_test.go`
-- `tests/e2e/mcplifecycleoperator_test.go`
-- `tests/e2e/mlflowoperator_test.go`
-- `tests/e2e/monitoring_test.go`
-- `tests/e2e/ogx_test.go`
-- `tests/e2e/workbenches_test.go`
+- `tests/e2e/controller_test.go` -- top-level suite dispatcher and execution profiles
+- `tests/e2e/synthetic_module_test.go` -- operator-owned synthetic module lifecycle contract on OpenShift
+- `tests/e2e/dag_ordering_test.go` -- full production-module DAG integration on OpenShift and the KServe-through-`Platform` runlevel scenario on xKS
+- `tests/e2e/internal/moduleinventory/inventory.go` -- production module inventory derived from built-in registrations
+- `tests/e2e/dag_report_test.go` -- inventory-to-DAG coverage checks and failure attribution support
 
 Additional E2E tests validate library-level behavior at the system level:
 
@@ -159,7 +155,7 @@ Handler implementations use compile-time interface satisfaction checks (e.g., `v
 
 2. **Full pipeline envtest**: No single test currently exercises the complete render-deploy-GC pipeline in one envtest session. Individual actions are tested in isolation; a unified pipeline test would validate action composition.
 
-3. **Platform mode (xKS) module E2E coverage**: The `test-kind-odh-e2e.yaml` workflow covers a subset of modules (kserve, cloudmanager). Expanding xKS E2E coverage to all modules would validate library behavior on vanilla Kubernetes without OpenShift dependencies.
+3. **Platform mode (xKS) module E2E coverage**: The `test-kind-odh-e2e.yaml` workflow runs xKS-compatible operator and gateway checks. Its module DAG coverage is limited to KServe runlevel behavior through the `Platform` CR; it skips the synthetic suite and does not exercise the full OpenShift production-module DAG. Expanding xKS coverage to more modules would validate library behavior on vanilla Kubernetes without OpenShift dependencies.
 
 4. **Predicates sub-packages**: Five predicate packages (`component`, `dependent`, `generation`, `hash`, `partial`) have zero test coverage. These implement controller watch filters and should be unit tested.
 

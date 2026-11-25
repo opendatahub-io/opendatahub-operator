@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -65,7 +66,7 @@ func (tc *DeletionTestCtx) TestDSCDeletion(t *testing.T) {
 		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed)),
 	)
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: serviceApi.MonitoringInstanceName}),
 		WithCondition(jq.Match(
 			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
 			status.ConditionTypeReady, metav1.ConditionTrue,
@@ -129,7 +130,7 @@ func (tc *DeletionTestCtx) TestDSCDeletion(t *testing.T) {
 		WithConsistentlyPollingInterval(5*time.Second),
 	)
 	tc.EnsureResourceExistsConsistently(
-		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: serviceApi.MonitoringInstanceName}),
 		WithCondition(jq.Match(
 			`.metadata.deletionTimestamp == null and any(.status.conditions[]; .type == "%s" and .status == "%s")`,
 			status.ConditionTypeReady, metav1.ConditionTrue,

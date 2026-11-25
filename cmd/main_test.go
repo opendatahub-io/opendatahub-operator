@@ -17,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/pkg/scoperules"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 )
@@ -45,6 +46,30 @@ func repoRoot(t *testing.T) string {
 
 func hasBuiltinModule(name string) bool {
 	return slices.Contains(modulebuiltin.Names(), name)
+}
+
+func hasRegisteredModule(name string) bool {
+	for _, registration := range moduleRegistrations(true) {
+		if registration.Handler.GetName() == name {
+			return true
+		}
+	}
+	return false
+}
+
+func TestSyntheticE2EModuleRegistrationIsOptIn(t *testing.T) {
+	t.Parallel()
+
+	defaultRegistrations := moduleRegistrations(false)
+	for _, registration := range defaultRegistrations {
+		assert.NotEqual(t, "synthetice2e", registration.Handler.GetName())
+	}
+
+	optInRegistrations := moduleRegistrations(true)
+	require.Len(t, optInRegistrations, len(defaultRegistrations)+1)
+	assert.Equal(t, "synthetice2e", optInRegistrations[len(optInRegistrations)-1].Handler.GetName())
+	assert.Equal(t, dag.RL(20), optInRegistrations[len(optInRegistrations)-1].Runlevel)
+	assert.Equal(t, mr.ConfigFromPlatform, optInRegistrations[len(optInRegistrations)-1].ConfigSource)
 }
 
 func TestAllComponentsHaveExplicitRunlevel(t *testing.T) {
@@ -171,7 +196,8 @@ func TestAllComponentsAndModulesHaveScopeRulesEntry(t *testing.T) {
 		_, ok := rules.Components[name]
 		assert.True(t, ok, "component %q is registered but has no components.%s entry in %s", name, name, e2eScopeRulesPath)
 	}
-	for _, name := range modulebuiltin.Names() {
+	for _, registration := range moduleRegistrations(true) {
+		name := registration.Handler.GetName()
 		_, inComponents := rules.Components[name]
 		_, inServices := rules.Services[name]
 		assert.True(t, inComponents || inServices,
@@ -206,7 +232,7 @@ func depsTargetsOfRegisteredEntries(components map[string]scoperules.Entry) map[
 	registered := map[string]scoperules.Entry{}
 	for name, entry := range components {
 		_, isComponent := existingComponents[name]
-		isModule := hasBuiltinModule(name)
+		isModule := hasRegisteredModule(name)
 		if isComponent || isModule {
 			registered[name] = entry
 		}
@@ -228,9 +254,9 @@ func TestScopeRulesComponentsReferenceRegisteredHandlers(t *testing.T) {
 
 	for name := range rules.Components {
 		_, isComponent := existingComponents[name]
-		isModule := hasBuiltinModule(name)
+		isModule := hasRegisteredModule(name)
 		assert.True(t, isComponent || isModule || vouchedFor[name],
-			"%s has components.%s but no matching handler in existingComponents or built-in modules, "+
+			"%s has components.%s but no matching handler in existingComponents or registered modules, "+
 				"and it isn't a dependency of any entry that does — stale entry?", e2eScopeRulesPath, name)
 	}
 }

@@ -41,6 +41,7 @@ func TestPlatformConversionPreservesFieldsAndRenamesModules(t *testing.T) {
 			TrustyAI:             common.ManagementSpec{ManagementState: operatorv1.Managed},
 			ModelRegistry:        common.ManagementSpec{},
 			DatabaseService:      common.ManagementSpec{ManagementState: operatorv1.Managed},
+			SyntheticE2E:         common.ManagementSpec{ManagementState: operatorv1.Managed},
 		}},
 		Status: PlatformStatus{Status: common.Status{
 			Phase:              "Ready",
@@ -66,6 +67,7 @@ func TestPlatformConversionPreservesFieldsAndRenamesModules(t *testing.T) {
 	g.Expect(hub.Spec.Modules.TrustyAI).To(Equal(legacy.Spec.Modules.TrustyAI))
 	g.Expect(hub.Spec.Modules.Dashboard).To(Equal(legacy.Spec.Modules.Dashboard))
 	g.Expect(hub.Spec.Modules.DatabaseService).To(Equal(legacy.Spec.Modules.DatabaseService))
+	g.Expect(hub.Spec.Modules.SyntheticE2E).To(Equal(legacy.Spec.Modules.SyntheticE2E))
 	g.Expect(hub.Status.Status).To(Equal(legacy.Status.Status))
 
 	encoded, err := json.Marshal(hub.Spec.Modules)
@@ -104,6 +106,7 @@ func TestPlatformConversionPreservesHubManagementStates(t *testing.T) {
 		Ray:                  common.ManagementSpec{ManagementState: operatorv1.Managed},
 		TrustyAI:             common.ManagementSpec{ManagementState: operatorv1.Removed},
 		DatabaseService:      common.ManagementSpec{ManagementState: operatorv1.Managed},
+		SyntheticE2E:         common.ManagementSpec{ManagementState: operatorv1.Removed},
 	}}}
 
 	legacy := &Platform{}
@@ -115,6 +118,7 @@ func TestPlatformConversionPreservesHubManagementStates(t *testing.T) {
 	g.Expect(legacy.Spec.Modules.Ray).To(Equal(hub.Spec.Modules.Ray))
 	g.Expect(legacy.Spec.Modules.TrustyAI).To(Equal(hub.Spec.Modules.TrustyAI))
 	g.Expect(legacy.Spec.Modules.DatabaseService).To(Equal(hub.Spec.Modules.DatabaseService))
+	g.Expect(legacy.Spec.Modules.SyntheticE2E).To(Equal(hub.Spec.Modules.SyntheticE2E))
 
 	convertedHub := &v1alpha2.Platform{}
 	g.Expect(legacy.ConvertTo(convertedHub)).To(Succeed())

@@ -63,11 +63,11 @@ jobs:
 
           echo "Pushing E2E test image: ${E2E_IMAGE}"
           podman push "${E2E_IMAGE}"
-          
+
           echo "Pushing E2E test image with latest tag: ${E2E_IMAGE_LATEST}"
           podman push "${E2E_IMAGE_LATEST}"
 
           echo "Pushing E2E test image with commit reference: ${E2E_IMAGE_COMMIT}"
           podman push "${E2E_IMAGE_COMMIT}"
 
-          echo "E2E test image built and pushed successfully!"
+          echo "E2E image built and pushed successfully!"

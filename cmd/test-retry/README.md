@@ -9,6 +9,7 @@ A Go CLI tool for running tests with automatic retry functionality. It tracks wh
 - **Parallel Execution**: Supports parallel test execution for faster results
 - **Detailed Output**: Provides verbose output with test results and retry attempts
 - **Flexible Configuration**: Configurable retry count, timeouts, and test filters
+- **Policy-aware E2E verdicts**: Combines core results with attributed production DAG failures
 
 ## Installation
 
@@ -25,6 +26,11 @@ go build -o test-retry .
 ```bash
 # Run e2e tests with retry
 ./test-retry e2e
+
+# Evaluate split core and DAG results
+./test-retry verdict --core-exit=0 --dag-exit=1 \
+  --dag-report=results/dag-report.json \
+  --output=results/e2e-summary.json
 ```
 
 ### Advanced Options

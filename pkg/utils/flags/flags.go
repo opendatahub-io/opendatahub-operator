@@ -123,6 +123,12 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 		return err
 	}
 
+	pflag.Bool("enable-synthetic-e2e-module", false,
+		"Enable the private synthetic E2E module handler")
+	if err := viper.BindEnv("enable-synthetic-e2e-module", "ODH_ENABLE_SYNTHETIC_E2E_MODULE"); err != nil {
+		return err
+	}
+
 	if err := addResourceSuppressionFlags(); err != nil {
 		return err
 	}
@@ -164,4 +170,10 @@ func GetRHAIApplicationsNamespace() string {
 // with surrounding whitespace trimmed.
 func GetRHAIVersion() string {
 	return strings.TrimSpace(viper.GetString("rhai-version"))
+}
+
+// IsSyntheticE2EModuleEnabled returns true only when the private synthetic
+// module is explicitly enabled at operator startup.
+func IsSyntheticE2EModuleEnabled() bool {
+	return viper.GetBool("enable-synthetic-e2e-module")
 }

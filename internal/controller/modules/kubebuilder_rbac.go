@@ -76,3 +76,8 @@ package modules
 // +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=databaseservices,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=databaseservices/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=databaseservices/finalizers,verbs=update
+
+// Synthetic E2E module (startup opt-in only)
+// +kubebuilder:rbac:groups=synthetic.platform.opendatahub.io,resources=syntheticmodules,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=synthetic.platform.opendatahub.io,resources=syntheticmodules/status,verbs=get
+// +kubebuilder:rbac:groups=synthetic.platform.opendatahub.io,resources=syntheticmodules/finalizers,verbs=update
