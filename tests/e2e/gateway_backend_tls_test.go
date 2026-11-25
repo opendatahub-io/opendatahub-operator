@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"math/big"
 	"net/http"
 	"testing"
@@ -174,10 +175,14 @@ func (tc *GatewayTestCtx) ValidateBackendTLSRejectsUntrustedCertificate(t *testi
 		tc.g.Expect(client.IgnoreNotFound(tc.Client().Delete(ctx, envoyConfig))).To(Succeed())
 	}()
 
-	tc.createBackendTLSStaticBackend(t, envoyImage, backendTLSTrustedName, appsNamespace, true)
+	// Register cleanup before setup: a readiness failure inside the setup
+	// helper aborts the test's deferred calls, so a defer registered after a
+	// failed create would leak the backend objects. The cleanup tolerates
+	// resources that were never created.
 	defer tc.deleteBackendTLSBackend(t, backendTLSTrustedName, appsNamespace)
-	tc.createBackendTLSStaticBackend(t, envoyImage, backendTLSHostileName, appsNamespace, false)
+	tc.createBackendTLSStaticBackend(t, envoyImage, backendTLSTrustedName, appsNamespace, true)
 	defer tc.deleteBackendTLSBackend(t, backendTLSHostileName, appsNamespace)
+	tc.createBackendTLSStaticBackend(t, envoyImage, backendTLSHostileName, appsNamespace, false)
 
 	// A route that never attached to the gateway would send the probe to the
 	// catch-all backend instead of ours: assert acceptance so a routing
@@ -215,6 +220,12 @@ func (tc *GatewayTestCtx) ValidateBackendTLSRejectsUntrustedCertificate(t *testi
 
 	httpClient := &http.Client{
 		Timeout: 30 * time.Second,
+		// Redirects are never followed: a followed redirect would report the
+		// destination's status (the OAuth login page answers 200) and weaken
+		// every probe against it.
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				// #nosec G402 -- e2e test environment; the gateway serves a cluster certificate.
@@ -223,32 +234,28 @@ func (tc *GatewayTestCtx) ValidateBackendTLSRejectsUntrustedCertificate(t *testi
 		},
 	}
 
-	// Trusted twin: the service-CA-signed backend must serve traffic. This is
-	// the positive control that makes the hostile twin's 503 meaningful.
-	tc.g.Eventually(func(g Gomega) int {
-		return tc.probeBackendTLSPath(g, ctx, httpClient, gatewayURL+backendTLSTrustedPath, token)
-	}).ShouldNot(Equal(http.StatusServiceUnavailable),
-		"backend with a service-CA-signed certificate must not be rejected")
+	// Trusted twin: the service-CA-signed backend must answer with the
+	// static body itself. This is the positive control that makes the
+	// hostile twin's 503 meaningful.
+	tc.g.Eventually(func(g Gomega) {
+		status, body := tc.probeBackendTLSPath(g, ctx, httpClient, gatewayURL+backendTLSTrustedPath, token)
+		g.Expect(status).To(Equal(http.StatusOK),
+			"backend with a service-CA-signed certificate must not be rejected")
+		g.Expect(body).To(Equal("ok"),
+			"the trusted backend itself must answer, not some other hop")
+	}).Should(Succeed())
 
 	// Hostile twin: the self-signed backend must be rejected with a 503
 	// (upstream TLS verification failure).
-	tc.g.Eventually(func(g Gomega) int {
-		return tc.probeBackendTLSPath(g, ctx, httpClient, gatewayURL+backendTLSHostilePath, token)
-	}).Should(Equal(http.StatusServiceUnavailable),
-		"gateway must reject a backend whose certificate does not chain to the trust bundle")
+	tc.g.Eventually(func(g Gomega) {
+		status, _ := tc.probeBackendTLSPath(g, ctx, httpClient, gatewayURL+backendTLSHostilePath, token)
+		g.Expect(status).To(Equal(http.StatusServiceUnavailable),
+			"gateway must reject a backend whose certificate does not chain to the trust bundle")
+	}).Should(Succeed())
 
 	// Isolation: the auth-proxy hop keeps working while the hostile backend is
-	// rejected. Redirects are not followed: the hop's health signal is the 302
-	// login redirect itself — following it would land on the OAuth login page
-	// and report that page's 200 instead.
-	noRedirectClient := &http.Client{
-		Timeout: 30 * time.Second,
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-		Transport: httpClient.Transport,
-	}
-	resp, err := noRedirectClient.Get(gatewayURL + authProxyOAuth2Path + "/start") //nolint:noctx // e2e probe
+	// rejected. The hop's health signal is the 302 login redirect itself.
+	resp, err := httpClient.Get(gatewayURL + authProxyOAuth2Path + "/start") //nolint:noctx // e2e probe
 	tc.g.Expect(err).NotTo(HaveOccurred())
 	defer resp.Body.Close()
 	tc.g.Expect(resp.StatusCode).To(Equal(http.StatusFound),
@@ -273,8 +280,8 @@ func (tc *GatewayTestCtx) ValidateBackendTLSRejectsUntrustedCertificate(t *testi
 }
 
 // probeBackendTLSPath sends an authenticated request through the gateway and
-// returns the response status code.
-func (tc *GatewayTestCtx) probeBackendTLSPath(g Gomega, ctx context.Context, httpClient *http.Client, url, token string) int {
+// returns the response status code and body.
+func (tc *GatewayTestCtx) probeBackendTLSPath(g Gomega, ctx context.Context, httpClient *http.Client, url, token string) (int, string) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	g.Expect(err).NotTo(HaveOccurred())
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -283,7 +290,10 @@ func (tc *GatewayTestCtx) probeBackendTLSPath(g Gomega, ctx context.Context, htt
 	g.Expect(err).NotTo(HaveOccurred())
 	defer resp.Body.Close()
 
-	return resp.StatusCode
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	return resp.StatusCode, string(body)
 }
 
 // getGatewayImage returns the container image the operator's default gateway
