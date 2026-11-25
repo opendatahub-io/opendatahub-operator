@@ -46,6 +46,10 @@ const (
 	maasConsumerPortalConditionType = "MaaSConsumerPortalAvailable"
 	dashboardReadyConditionType     = "DashboardReady"
 	monitoringViewClusterRole       = "cluster-monitoring-view"
+
+	// reconcileNudgeAnnotation is a test-owned annotation written to the Dashboard CR
+	// to enqueue a reconcile on demand. The operator ignores it, so it is harmless.
+	reconcileNudgeAnnotation = "e2e.opendatahub.io/reconcile-nudge"
 )
 
 func dashboardTestSuite(t *testing.T) {
@@ -361,7 +365,19 @@ func (tc *DashboardTestCtx) ValidateDataConnectHubImageEnvVarInjection(t *testin
 	)
 }
 
-// ValidateOperandsDynamicallyWatchedResources ensures that operands are correctly watched for dynamic updates.
+// ValidateOperandsDynamicallyWatchedResources ensures that drifts on operands are
+// repaired by the next dashboard-operator reconcile.
+//
+// The mutation is applied to an OdhApplication, but the reconciling event has to come
+// from a resource kind the dashboard-operator actually watches (Deployments, Services,
+// ServiceAccounts, NetworkPolicies, RBAC, PodDisruptionBudgets, ConfigMaps and the
+// Dashboard CR itself). OdhApplications are deployed as generic unstructured resources
+// and are not registered with Owns(), so an annotation-only edit to one of them never
+// enqueues a reconcile on its own: the drift is only repaired when some other watched
+// resource changes. Relying on that incidental churn made the assertion pass in the
+// full suite (16 components churning) and time out in a dashboard-scoped E2E run,
+// where the platform is otherwise quiet. Touch the Dashboard CR to make the reconcile
+// deterministic instead.
 func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testing.T) {
 	t.Helper()
 
@@ -377,6 +393,18 @@ func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testi
 		WithMutateFunc(
 			func(obj *unstructured.Unstructured) error {
 				oldPt = resources.SetAnnotation(obj, annotations.PlatformType, newPt)
+				return nil
+			},
+		),
+	)
+
+	// Enqueue a reconcile through the Dashboard CR, which the reconciliation loop
+	// watches directly, so the repair does not depend on unrelated cluster churn.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Dashboard, tc.NamespacedName),
+		WithMutateFunc(
+			func(obj *unstructured.Unstructured) error {
+				resources.SetAnnotation(obj, reconcileNudgeAnnotation, xid.New().String())
 				return nil
 			},
 		),
@@ -465,31 +493,56 @@ var moduleSlugToName = map[string]string{
 	"maas":           "maas",
 }
 
-// isModuleDeployed checks the Dashboard CR's status.moduleStatuses to determine
-// whether a module identified by its manifest slug is currently deployed. This
+// modulePhase returns the phase reported for a module in the Dashboard CR's
+// status.moduleStatuses, or an empty string when it cannot be determined. This
 // reflects the fully resolved state including DSC component gates, explicit
 // spec.modules overrides, and inter-module dependencies.
-func (tc *DashboardTestCtx) isModuleDeployed(slug string) bool {
+func (tc *DashboardTestCtx) modulePhase(slug string) string {
 	moduleName, known := moduleSlugToName[slug]
 	if !known {
-		return true
+		return ""
 	}
 
 	dashboard := tc.FetchResource(
 		WithMinimalObject(gvk.Dashboard, tc.NamespacedName),
 	)
 	if dashboard == nil {
-		return true
+		return ""
 	}
 
 	statuses, found, err := unstructured.NestedMap(dashboard.Object, "status", "moduleStatuses", moduleName)
 	if err != nil || !found {
-		return true
+		return ""
 	}
 
 	phase, _ := statuses["phase"].(string)
 
-	return phase == "Deployed" || phase == "Degraded"
+	return phase
+}
+
+// isModuleRedeployed reports whether the dashboard-operator re-applies a module's
+// manifests, which is what makes a deleted ConfigMap recoverable.
+//
+// Only the Deployed phase is re-applied: deployModuleManifests() skips every
+// other phase, while deleteModuleResources() keeps the resources of Deployed and
+// Degraded modules. A Degraded module therefore keeps its ConfigMaps but never
+// gets them back once deleted, so asserting deletion recovery for it can only
+// time out (deletionRecoveryTimeout, 90s).
+//
+// Unknown modules, a missing Dashboard CR, or missing module status are treated
+// as re-deployed so the assertion is still exercised whenever the state cannot
+// be resolved.
+func (tc *DashboardTestCtx) isModuleRedeployed(slug string) bool {
+	if _, known := moduleSlugToName[slug]; !known {
+		return true
+	}
+
+	phase := tc.modulePhase(slug)
+	if phase == "" {
+		return true
+	}
+
+	return phase == "Deployed"
 }
 
 // ValidateAllDeletionRecovery runs the standard set of deletion recovery tests.
@@ -571,12 +624,18 @@ func (tc *DashboardTestCtx) validateDashboardDeletionRecovery(t *testing.T) {
 
 // validateConfigMapDeletionRecovery tests that dashboard ConfigMaps are
 // recreated after deletion. ConfigMaps whose app.kubernetes.io/component label
-// identifies a module that is not currently deployed are skipped — the
-// dashboard-operator does not recreate resources for disabled modules, but it
-// also does not clean up their ConfigMaps, so they may still exist on the
-// cluster as stale resources.
+// identifies a module whose manifests are not re-applied by the dashboard-operator
+// are skipped:
 //
-// Module deployment state is read from the Dashboard CR's status.moduleStatuses
+//   - Disabled/NotDeployed modules: the operator removes their resources, but
+//     older revisions left their ConfigMaps behind as stale objects.
+//   - Degraded modules: their resources are kept but never re-applied, so a
+//     deleted ConfigMap is not recovered.
+//
+// In both cases the ConfigMap can still exist on the cluster while deletion
+// recovery for it can only time out.
+//
+// Module state is read from the Dashboard CR's status.moduleStatuses
 // immediately before each subtest, which reflects the fully resolved state
 // including DSC component gates, explicit spec.modules overrides, and
 // inter-module dependencies.
@@ -606,8 +665,9 @@ func (tc *DashboardTestCtx) validateConfigMapDeletionRecovery(t *testing.T) {
 			t.Helper()
 
 			moduleSlug := resource.GetLabels()["app.kubernetes.io/component"]
-			if moduleSlug != "" && !tc.isModuleDeployed(moduleSlug) {
-				t.Skipf("ConfigMap %s belongs to module %q which is not currently deployed", resource.GetName(), moduleSlug)
+			if moduleSlug != "" && !tc.isModuleRedeployed(moduleSlug) {
+				t.Skipf("ConfigMap %s belongs to module %q in phase %q, whose manifests are not re-applied by the dashboard-operator",
+					resource.GetName(), moduleSlug, tc.modulePhase(moduleSlug))
 				return
 			}
 
