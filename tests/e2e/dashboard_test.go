@@ -46,6 +46,10 @@ const (
 	maasConsumerPortalConditionType = "MaaSConsumerPortalAvailable"
 	dashboardReadyConditionType     = "DashboardReady"
 	monitoringViewClusterRole       = "cluster-monitoring-view"
+
+	// reconcileNudgeAnnotation is a test-owned annotation written to the Dashboard CR
+	// to enqueue a reconcile on demand. The operator ignores it, so it is harmless.
+	reconcileNudgeAnnotation = "e2e.opendatahub.io/reconcile-nudge"
 )
 
 func dashboardTestSuite(t *testing.T) {
@@ -361,7 +365,19 @@ func (tc *DashboardTestCtx) ValidateDataConnectHubImageEnvVarInjection(t *testin
 	)
 }
 
-// ValidateOperandsDynamicallyWatchedResources ensures that operands are correctly watched for dynamic updates.
+// ValidateOperandsDynamicallyWatchedResources ensures that drifts on operands are
+// repaired by the next dashboard-operator reconcile.
+//
+// The mutation is applied to an OdhApplication, but the reconciling event has to come
+// from a resource kind the dashboard-operator actually watches (Deployments, Services,
+// ServiceAccounts, NetworkPolicies, RBAC, PodDisruptionBudgets, ConfigMaps and the
+// Dashboard CR itself). OdhApplications are deployed as generic unstructured resources
+// and are not registered with Owns(), so an annotation-only edit to one of them never
+// enqueues a reconcile on its own: the drift is only repaired when some other watched
+// resource changes. Relying on that incidental churn made the assertion pass in the
+// full suite (16 components churning) and time out in a dashboard-scoped E2E run,
+// where the platform is otherwise quiet. Touch the Dashboard CR to make the reconcile
+// deterministic instead.
 func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testing.T) {
 	t.Helper()
 
@@ -377,6 +393,18 @@ func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testi
 		WithMutateFunc(
 			func(obj *unstructured.Unstructured) error {
 				oldPt = resources.SetAnnotation(obj, annotations.PlatformType, newPt)
+				return nil
+			},
+		),
+	)
+
+	// Enqueue a reconcile through the Dashboard CR, which the reconciliation loop
+	// watches directly, so the repair does not depend on unrelated cluster churn.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Dashboard, tc.NamespacedName),
+		WithMutateFunc(
+			func(obj *unstructured.Unstructured) error {
+				resources.SetAnnotation(obj, reconcileNudgeAnnotation, xid.New().String())
 				return nil
 			},
 		),
