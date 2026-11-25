@@ -650,7 +650,7 @@ func RestoreDSCFromBackup(t *testing.T, dscBackupPath string) {
 		)
 		return
 	}
-	tc.DeleteResources(
+	tc.DeleteResource(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithWaitForDeletion(true),
 		WithIgnoreNotFound(true),
