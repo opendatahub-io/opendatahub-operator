@@ -161,6 +161,8 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate NetworkPolicy creation", gatewayCtx.ValidateNetworkPolicy},
 		{"Validate NetworkPolicy ingress traffic", gatewayCtx.ValidateNetworkPolicyIngressTraffic},
 		{"Validate OAuth callback HTTPRoute", gatewayCtx.ValidateOAuthCallbackRoute},
+		{"Validate BackendTLSPolicy rendering", gatewayCtx.ValidateBackendTLSPolicies},
+		{"Validate BackendTLS rejects untrusted certificate", gatewayCtx.ValidateBackendTLSRejectsUntrustedCertificate},
 		{"Validate EnvoyFilter creation", gatewayCtx.ValidateEnvoyFilter},
 		{"Validate EDS endpoint discovery", gatewayCtx.ValidateEDSEndpointDiscovery},
 		{"Validate Gateway ready status", gatewayCtx.ValidateGatewayReadyStatus},
