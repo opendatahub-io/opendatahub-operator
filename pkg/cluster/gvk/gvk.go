@@ -625,6 +625,17 @@ var (
 		Kind:    "HTTPRoute",
 	}
 
+	BackendTLSPolicy = schema.GroupVersionKind{
+		Group:   gwapiv1.GroupVersion.Group,
+		Version: gwapiv1.GroupVersion.Version,
+		Kind:    "BackendTLSPolicy",
+	}
+
+	// BackendTLSPolicyCRDName is the explicit plural CRD name: the generic
+	// CRD-existence helpers derive names as <kind>s.<group>, which is wrong
+	// for the irregular plural "policies".
+	BackendTLSPolicyCRDName = "backendtlspolicies.gateway.networking.k8s.io"
+
 	OAuthClient = schema.GroupVersionKind{
 		Group:   oauthv1.GroupVersion.Group,
 		Version: oauthv1.GroupVersion.Version,

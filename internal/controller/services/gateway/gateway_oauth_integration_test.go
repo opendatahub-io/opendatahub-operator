@@ -356,6 +356,11 @@ func TestOAuthDestinationRuleCreation(t *testing.T) {
 	RunDestinationRuleCreationTest(t, GetOAuthTestSetup())
 }
 
+// TestOAuthBackendTLSPolicy validates BackendTLSPolicy rendering in OAuth mode (delegates to RunBackendTLSPolicyTest).
+func TestOAuthBackendTLSPolicy(t *testing.T) {
+	RunBackendTLSPolicyTest(t, GetOAuthTestSetup())
+}
+
 // TestOAuthOCPRouteCreation validates OCP Route creation in OAuth mode (delegates to RunOCPRouteCreationTest).
 func TestOAuthOCPRouteCreation(t *testing.T) {
 	RunOCPRouteCreationTest(t, GetOAuthTestSetup(), DefaultGatewayHost(OAuthClusterDomain))

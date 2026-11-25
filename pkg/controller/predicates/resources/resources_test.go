@@ -1316,6 +1316,53 @@ func TestHTTPRouteReferencesGateway(t *testing.T) {
 	}
 }
 
+// TestHTTPRouteReferencesGateway_UpdateTransitions covers update events where
+// the route's attachment changes: detaching from the gateway (or attaching to
+// it) must trigger the reconcile that refreshes or garbage-collects derived
+// resources such as backend TLS policies.
+func TestHTTPRouteReferencesGateway_UpdateTransitions(t *testing.T) {
+	t.Parallel()
+
+	predicate := resources.HTTPRouteReferencesGateway("my-gateway", "my-namespace")
+
+	gatewayNamespace := gwapiv1.Namespace("my-namespace")
+	matching := &gwapiv1.HTTPRoute{
+		Spec: gwapiv1.HTTPRouteSpec{
+			CommonRouteSpec: gwapiv1.CommonRouteSpec{
+				ParentRefs: []gwapiv1.ParentReference{{Name: "my-gateway", Namespace: &gatewayNamespace}},
+			},
+		},
+	}
+	detached := &gwapiv1.HTTPRoute{
+		Spec: gwapiv1.HTTPRouteSpec{
+			CommonRouteSpec: gwapiv1.CommonRouteSpec{
+				ParentRefs: []gwapiv1.ParentReference{{Name: "other-gateway", Namespace: &gatewayNamespace}},
+			},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		old, new client.Object
+		expected bool
+	}{
+		{"old references, new does not (detach)", matching, detached, true},
+		{"old does not, new references (attach)", detached, matching, true},
+		{"neither references", detached, detached, false},
+		{"nil old object", nil, matching, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			g := NewWithT(t)
+
+			g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: tt.old, ObjectNew: tt.new})).To(Equal(tt.expected))
+		})
+	}
+}
+
 func TestHTTPRouteReferencesGateway_DefaultNamespace(t *testing.T) {
 	t.Parallel()
 
