@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -67,8 +69,27 @@ func isOTelCollectorWebhook(webhook admissionregistrationv1.ValidatingWebhook) b
 	return false
 }
 
+// validatingWebhookConfiguration accepts the typed object used in tests and the
+// unstructured object the reconciler watch delivers for every event.
+func validatingWebhookConfiguration(obj client.Object) (*admissionregistrationv1.ValidatingWebhookConfiguration, bool) {
+	if configuration, ok := obj.(*admissionregistrationv1.ValidatingWebhookConfiguration); ok {
+		return configuration, true
+	}
+
+	unstructuredObj, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return nil, false
+	}
+
+	configuration := &admissionregistrationv1.ValidatingWebhookConfiguration{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, configuration); err != nil {
+		return nil, false
+	}
+	return configuration, true
+}
+
 func isOTelCollectorWebhookConfiguration(obj client.Object) bool {
-	configuration, ok := obj.(*admissionregistrationv1.ValidatingWebhookConfiguration)
+	configuration, ok := validatingWebhookConfiguration(obj)
 	if !ok {
 		return false
 	}
