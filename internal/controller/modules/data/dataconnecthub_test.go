@@ -62,6 +62,7 @@ func TestDataConnectHubConfigurationProjection(t *testing.T) {
 			config := &dsc.Spec.Components.Data.DataConnectHub
 			config.ManagementState = operatorv1.Managed
 			if overrides {
+				config.Namespace = "custom-dch-infra"
 				config.Gateway = &componentApi.DataConnectHubGateway{Name: "custom-gateway", Namespace: "custom-ingress"}
 				config.TokenReviewAudiences = []string{"https://override.example"}
 			}
@@ -72,6 +73,13 @@ func TestDataConnectHubConfigurationProjection(t *testing.T) {
 			obj, err := data.NewHandler().BuildModuleCR(context.Background(), cli, &modules.DSCContext{DSC: dsc}, nil)
 			require.NoError(t, err)
 			require.NotPanics(t, func() { _ = obj.DeepCopy() }, "module CR must contain valid unstructured JSON values")
+			namespace, _, err := unstructured.NestedString(obj.Object, "spec", "capabilities", "dataConnectHub", "namespace")
+			require.NoError(t, err)
+			wantNamespace := componentApi.DefaultDataConnectHubNamespace
+			if overrides {
+				wantNamespace = "custom-dch-infra"
+			}
+			require.Equal(t, wantNamespace, namespace)
 			audiences, _, err := unstructured.NestedStringSlice(obj.Object, "spec", "capabilities", "dataConnectHub", "tokenReviewAudiences")
 			require.NoError(t, err)
 			if overrides {

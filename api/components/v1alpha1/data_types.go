@@ -52,6 +52,14 @@ type DataConnectHubGateway struct {
 type DSCDataConnectHub struct {
 	common.ManagementSpec `json:",inline"`
 
+	// Namespace contains the DCH services, not the module/controller.
+	// Defaults to odh-data-connect-hub-infra on ODH and
+	// rhoai-data-connect-hub-infra on RHOAI when Managed.
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+
 	// Gateway overrides the platform-discovered Gateway.
 	// +optional
 	Gateway *DataConnectHubGateway `json:"gateway,omitempty"`

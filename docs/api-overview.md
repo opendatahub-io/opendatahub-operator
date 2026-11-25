@@ -367,6 +367,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `namespace` _string_ | Namespace contains the DCH services, not the module/controller.<br />Defaults to odh-data-connect-hub-infra on ODH and<br />rhoai-data-connect-hub-infra on RHOAI when Managed. |  | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `gateway` _[DataConnectHubGateway](#dataconnecthubgateway)_ | Gateway overrides the platform-discovered Gateway. |  |  |
 | `tokenReviewAudiences` _string array_ | TokenReviewAudiences overrides platform-discovered service-account audiences.<br />Omitted or empty means use platform discovery. |  | MaxItems: 32 <br />items:MaxLength: 256 <br />items:MinLength: 1 <br /> |
 

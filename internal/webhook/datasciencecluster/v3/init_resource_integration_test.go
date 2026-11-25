@@ -176,9 +176,13 @@ func TestDefaultDSCFromSampleAdmittedByAPIServer(t *testing.T) {
 	updated := &dscApi.DataScienceCluster{}
 	g.Expect(env.Client().Get(ctx, client.ObjectKeyFromObject(fetched), updated)).To(Succeed())
 	g.Expect(updated.Spec.Components.Data.DataConnectHub.ManagementState).To(Equal(operatorv1.Managed))
+	g.Expect(updated.Spec.Components.Data.DataConnectHub.Namespace).To(Equal(componentApi.DefaultDataConnectHubNamespace))
 	g.Expect(updated.Spec.Components.Data.DataConnectHub.Gateway).To(Equal(expectedGateway))
 	g.Expect(updated.Spec.Components.Data.DataConnectHub.TokenReviewAudiences).To(Equal([]string{"https://issuer.example"}))
 	invalid := updated.DeepCopy()
+	invalid.Spec.Components.Data.DataConnectHub.Namespace = "other-dch-infra"
+	g.Expect(env.Client().Update(ctx, invalid)).NotTo(Succeed(), "DCH namespace must not change while Managed")
+	invalid = updated.DeepCopy()
 	invalid.Spec.Components.Data.DataConnectHub.Gateway.Namespace = ""
 	g.Expect(env.Client().Update(ctx, invalid)).NotTo(Succeed(), "DCH Gateway namespace must not be empty")
 	for _, whitespace := range []string{" ", "\t\n", "\u00a0", "\u3000"} {

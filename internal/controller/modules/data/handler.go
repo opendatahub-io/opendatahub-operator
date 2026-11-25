@@ -185,6 +185,11 @@ func buildDataConnectHubSpec(ctx context.Context, cli client.Client, config comp
 	if state != operatorv1.Managed {
 		return spec, nil
 	}
+	namespace := config.Namespace
+	if namespace == "" {
+		namespace = componentApi.DefaultDataConnectHubNamespace
+	}
+	spec["namespace"] = namespace
 	gw := map[string]any{"name": gateway.GetDefaultGatewayName(), "namespace": gateway.GetGatewayNamespace()}
 	if config.Gateway != nil {
 		gw["name"] = config.Gateway.Name

@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
@@ -17,12 +18,15 @@ import (
 const DataConnectHubV3StateAnnotation = "conversion.opendatahub.io/dataconnecthub-v3-state"
 
 func emptyDataConnectHubState(config componentApi.DSCDataConnectHub) bool {
-	return config.ManagementState == "" && config.Gateway == nil && len(config.TokenReviewAudiences) == 0
+	return config.ManagementState == "" && config.Namespace == "" && config.Gateway == nil && len(config.TokenReviewAudiences) == 0
 }
 
 // validateDataConnectHubState mirrors the v3 field schema because annotation
 // values written through v2 are not validated by the v3 OpenAPI schema.
 func validateDataConnectHubState(config componentApi.DSCDataConnectHub) error {
+	if config.Namespace != "" && len(validation.IsDNS1123Label(config.Namespace)) > 0 {
+		return fmt.Errorf("invalid Data Connect Hub namespace %q", config.Namespace)
+	}
 	if config.ManagementState != "" && config.ManagementState != operatorv1.Managed && config.ManagementState != operatorv1.Removed {
 		return fmt.Errorf("invalid Data Connect Hub management state %q", config.ManagementState)
 	}

@@ -12,6 +12,30 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+func TestDefaulterV3_DataConnectHubNamespace(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		state     operatorv1.ManagementState
+		namespace string
+		want      string
+	}{
+		{"managed default", operatorv1.Managed, "", componentApi.DefaultDataConnectHubNamespace},
+		{"managed override", operatorv1.Managed, "custom-dch-infra", "custom-dch-infra"},
+		{"removed", operatorv1.Removed, "", ""},
+		{"omitted", "", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dsc := &dscApi.DataScienceCluster{}
+			dch := &dsc.Spec.Components.Data.DataConnectHub
+			dch.ManagementState, dch.Namespace = tc.state, tc.namespace
+			err := (&v3webhook.Defaulter{Name: "test-v3"}).Default(t.Context(), dsc)
+			g := NewWithT(t)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(dch.Namespace).To(Equal(tc.want))
+		})
+	}
+}
+
 // ptrManagementState returns a pointer to the given ManagementState.
 func ptrManagementState(ms operatorv1.ManagementState) *operatorv1.ManagementState {
 	return new(ms)

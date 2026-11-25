@@ -19,6 +19,7 @@ func TestDataConnectHubRoundTrip(t *testing.T) {
 		t.Run(string(state), func(t *testing.T) {
 			src := &dscv3.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{"example.com/user": "retained"}}}
 			src.Spec.Components.Data.DataConnectHub = componentApi.DSCDataConnectHub{
+				Namespace:            "custom-dch-infra",
 				ManagementSpec:       common.ManagementSpec{ManagementState: state},
 				Gateway:              &componentApi.DataConnectHubGateway{Name: "gateway", Namespace: "ingress"},
 				TokenReviewAudiences: []string{"https://issuer.example"},
