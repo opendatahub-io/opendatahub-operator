@@ -259,10 +259,13 @@ func createBackendTLSPolicies(ctx context.Context, rr *odhtypes.ReconciliationRe
 	return nil
 }
 
-// backendTLSPolicyCRDServed reports whether the BackendTLSPolicy CRD exists
-// and is Established. It looks the CRD up by its explicit plural name: the
-// generic cluster.HasCRD helper derives names as <kind>s.<group>, which is
-// wrong for the irregular plural "policies" and would always report absent.
+// backendTLSPolicyCRDServed reports whether the BackendTLSPolicy CRD exists,
+// is Established, and serves v1. It looks the CRD up by its explicit plural
+// name: the generic cluster.HasCRD helper derives names as <kind>s.<group>,
+// which is wrong for the irregular plural "policies" and would always report
+// absent. The v1 check matters because Gateway API v1.3 installs this CRD as
+// v1alpha3 only: such a CRD is Established, but v1 policies cannot be rendered
+// or watched, so the feature must stay off on those clusters.
 func backendTLSPolicyCRDServed(ctx context.Context, cli client.Client) (bool, error) {
 	crd := &unstructured.Unstructured{}
 	crd.SetGroupVersionKind(crdGVK)
@@ -280,12 +283,34 @@ func backendTLSPolicyCRDServed(ctx context.Context, cli client.Client) (bool, er
 	if !found {
 		return false, nil
 	}
+	established := false
 	for _, raw := range conditions {
 		condition, ok := raw.(map[string]any)
 		if !ok {
 			continue
 		}
 		if condition["type"] == "Established" && condition["status"] == "True" {
+			established = true
+			break
+		}
+	}
+	if !established {
+		return false, nil
+	}
+
+	versions, found, err := unstructured.NestedSlice(crd.Object, "spec", "versions")
+	if err != nil {
+		return false, fmt.Errorf("failed to read BackendTLSPolicy CRD versions: %w", err)
+	}
+	if !found {
+		return false, nil
+	}
+	for _, raw := range versions {
+		version, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if version["name"] == "v1" && version["served"] == true {
 			return true, nil
 		}
 	}
@@ -326,11 +351,11 @@ func fetchServiceCA(ctx context.Context, cli client.Client) (string, error) {
 // fetchPlatformIssuerCA resolves the CA of the platform cert-manager issuer
 // (resolveIssuerRef precedence: GatewayConfig spec, RHAI_ISSUER_REF_* env,
 // bootstrap defaults). It returns an empty string — without error — whenever
-// the platform PKI is absent or not yet usable: missing issuer CR (CRD absent
-// or issuer not created), a non-CA-backed issuer, or a missing/unreadable CA
-// Secret. A half-configured PKI degrades to "no platform CA in the bundle"
-// instead of blocking gateway reconciliation: an optional trust source must
-// never wedge the reconcile.
+// the platform PKI is legitimately absent: a missing issuer CR (CRD absent or
+// issuer not created), a non-CA-backed issuer, or a CA Secret that does not
+// exist yet. A CA Secret that exists but cannot be read is an error instead:
+// silently dropping that CA would deploy a reduced trust bundle and stop
+// trusting platform-signed backends.
 //
 // A namespaced Issuer and its CA Secret are read from the gateway namespace,
 // where the gateway's cert-manager Certificates live (cert-manager requires
@@ -384,12 +409,12 @@ func fetchPlatformIssuerCA(ctx context.Context, cli client.Client, secretReader 
 		if k8serr.IsNotFound(err) {
 			return "", nil
 		}
-		// An optional trust source must not wedge the reconcile, but a failed
-		// read of an existing PKI is abnormal enough to log visibly.
-		logf.FromContext(ctx).Info(
-			"failed to read the platform issuer CA Secret; skipping the platform CA in the backend TLS bundle",
-			"secret", secretName, "namespace", secretNamespace, "error", err)
-		return "", nil
+		// A missing PKI is a legitimate skip, but a failed read of an
+		// existing PKI must not silently shrink the trust bundle: backends
+		// whose certificates chain to this CA would stop being trusted.
+		// Returning the error requeues the reconcile instead.
+		return "", fmt.Errorf("failed to read the platform issuer CA Secret %s/%s: %w",
+			secretNamespace, secretName, err)
 	}
 
 	if ca := secret.Data["ca.crt"]; len(ca) > 0 {

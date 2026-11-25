@@ -9,6 +9,7 @@ import (
 
 	"github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -78,7 +79,8 @@ func gatewayRoute(name, namespace string, gatewayName string, backendNamespace, 
 
 var routeGatewayNamespace = "openshift-ingress"
 
-// backendTLSCRD builds the BackendTLSPolicy CRD object as served (Established).
+// backendTLSCRD builds the BackendTLSPolicy CRD object as served: Established
+// with a v1 version that is served.
 func backendTLSCRD() *unstructured.Unstructured {
 	crd := &unstructured.Unstructured{}
 	crd.SetGroupVersionKind(crdGVK)
@@ -86,6 +88,19 @@ func backendTLSCRD() *unstructured.Unstructured {
 	_ = unstructured.SetNestedSlice(crd.Object, []any{
 		map[string]any{"type": "Established", "status": "True"},
 	}, "status", "conditions")
+	_ = unstructured.SetNestedSlice(crd.Object, []any{
+		map[string]any{"name": "v1", "served": true, "storage": true},
+	}, "spec", "versions")
+	return crd
+}
+
+// backendTLSCRDWithoutV1 builds an Established BackendTLSPolicy CRD that does
+// not serve v1 — the shape Gateway API v1.3 installs (v1alpha3 only).
+func backendTLSCRDWithoutV1() *unstructured.Unstructured {
+	crd := backendTLSCRD()
+	_ = unstructured.SetNestedSlice(crd.Object, []any{
+		map[string]any{"name": "v1alpha3", "served": true, "storage": true},
+	}, "spec", "versions")
 	return crd
 }
 
@@ -130,6 +145,31 @@ func TestBackendTLSPolicyCRDServed(t *testing.T) {
 	t.Run("missing CRD reports false without error", func(t *testing.T) {
 		g := gomega.NewWithT(t)
 		cli := setupTestClient().Build()
+
+		served, err := backendTLSPolicyCRDServed(ctx, cli)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		g.Expect(served).To(gomega.BeFalse())
+	})
+
+	t.Run("Established CRD that does not serve v1 reports false", func(t *testing.T) {
+		g := gomega.NewWithT(t)
+		// Gateway API v1.3 installs BackendTLSPolicy as v1alpha3 only: the
+		// CRD is Established, but v1 objects cannot be rendered or watched.
+		cli := setupTestClient().WithObjects(backendTLSCRDWithoutV1()).Build()
+
+		served, err := backendTLSPolicyCRDServed(ctx, cli)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		g.Expect(served).To(gomega.BeFalse())
+	})
+
+	t.Run("Established CRD with v1 not served reports false", func(t *testing.T) {
+		g := gomega.NewWithT(t)
+		crd := backendTLSCRD()
+		_ = unstructured.SetNestedSlice(crd.Object, []any{
+			map[string]any{"name": "v1", "served": false, "storage": false},
+			map[string]any{"name": "v1alpha3", "served": true, "storage": true},
+		}, "spec", "versions")
+		cli := setupTestClient().WithObjects(crd).Build()
 
 		served, err := backendTLSPolicyCRDServed(ctx, cli)
 		g.Expect(err).NotTo(gomega.HaveOccurred())
@@ -249,6 +289,32 @@ func TestFetchPlatformIssuerCA(t *testing.T) {
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 		g.Expect(ca).To(gomega.Equal(""))
 	})
+
+	t.Run("fails when the CA Secret read errors for another reason", func(t *testing.T) {
+		g := gomega.NewWithT(t)
+		setClusterType(t, cluster.ClusterTypeOpenShift)
+
+		cli := setupTestClient().WithObjects(clusterIssuer("opendatahub-ca")).Build()
+
+		// A Forbidden or timeout is not "no PKI": returning an empty CA here
+		// would deploy a reduced trust bundle.
+		ca, err := fetchPlatformIssuerCA(ctx, cli, errorReader{err: k8serr.NewForbidden(
+			schema.GroupResource{Resource: "secrets"}, "denied", nil)}, nil)
+		g.Expect(err).To(gomega.HaveOccurred())
+		g.Expect(ca).To(gomega.Equal(""))
+	})
+}
+
+// errorReader is a client.Reader whose every call fails, standing in for the
+// uncached reader when the API server rejects a read.
+type errorReader struct{ err error }
+
+func (r errorReader) Get(_ context.Context, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+	return r.err
+}
+
+func (r errorReader) List(_ context.Context, _ client.ObjectList, _ ...client.ListOption) error {
+	return r.err
 }
 
 func TestEnumerateBackendTLSTargets(t *testing.T) {
@@ -416,12 +482,56 @@ func TestCreateBackendTLSPolicies(t *testing.T) {
 		g := gomega.NewWithT(t)
 		setClusterType(t, cluster.ClusterTypeKubernetes)
 
-		route := gatewayRoute("callback-route", GetGatewayNamespace(), defaultGateway, GetGatewayNamespace(), "kube-auth-proxy", 8443)
+		// Resolve the gateway name for the selected cluster type and drop the
+		// hardcoded parentRef namespace so the route attaches to the XKS
+		// gateway; an unattached route would take the no-backends path and
+		// this subtest would pass vacuously.
+		route := gatewayRoute("callback-route", GetGatewayNamespace(), GetDefaultGatewayName(), GetGatewayNamespace(), "kube-auth-proxy", 8443)
+		route.Spec.ParentRefs[0].Namespace = nil
 		cli := setupTestClient().WithObjects(backendTLSCRD(), route).Build()
 		rr := newRequest(cli)
 
+		backends, err := enumerateBackendTLSTargets(ctx, cli, []string{GetDefaultGatewayName()})
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		g.Expect(backends).To(gomega.HaveLen(1),
+			"the route must be enumerated, so the empty bundle — not an empty backend set — is what skips rendering")
+
 		g.Expect(createBackendTLSPolicies(ctx, rr, cli)).To(gomega.Succeed())
 		g.Expect(rr.Resources).To(gomega.BeEmpty())
+
+		_, recorded := backendTLSDesiredArtifacts(rr)
+		g.Expect(recorded).To(gomega.BeFalse(),
+			"an unusable bundle must preserve the deployed artifacts, not record an empty desired set")
+	})
+
+	t.Run("fails instead of deploying a reduced bundle when the platform CA Secret read fails", func(t *testing.T) {
+		g := gomega.NewWithT(t)
+		setClusterType(t, cluster.ClusterTypeOpenShift)
+
+		route := gatewayRoute("callback-route", GetGatewayNamespace(), defaultGateway, GetGatewayNamespace(), "kube-auth-proxy", 8443)
+		cm := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: ServiceCAConfigMapName, Namespace: GetGatewayNamespace()},
+			Data:       map[string]string{ServiceCAConfigMapKey: testPEMA},
+		}
+		issuer := &unstructured.Unstructured{}
+		issuer.SetGroupVersionKind(gvk.CertManagerIssuer)
+		issuer.SetNamespace(GetGatewayNamespace())
+		issuer.SetName("gateway-issuer")
+		_ = unstructured.SetNestedField(issuer.Object, "gateway-ca", "spec", "ca", "secretName")
+		cli := setupTestClient().WithObjects(backendTLSCRD(), route, cm, issuer).Build()
+		rr := newRequest(cli)
+		gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
+		g.Expect(ok).To(gomega.BeTrue())
+		gatewayConfig.Spec.Certificate = &infrav1.CertificateSpec{
+			IssuerRef: &infrav1.IssuerRef{Name: "gateway-issuer", Kind: "Issuer"},
+		}
+
+		// The service CA alone would assemble a bundle; deploying it without
+		// the platform issuer CA would stop trusting platform-signed backends.
+		err := createBackendTLSPolicies(ctx, rr, errorReader{err: k8serr.NewForbidden(
+			schema.GroupResource{Resource: "secrets"}, "denied", nil)})
+		g.Expect(err).To(gomega.HaveOccurred())
+		g.Expect(rr.Resources).To(gomega.BeEmpty(), "no reduced bundle may be deployed on a failed platform CA read")
 	})
 
 	t.Run("renders a shared bundle ConfigMap and per-port policies for multi-port services", func(t *testing.T) {
