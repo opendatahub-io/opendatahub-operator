@@ -32,6 +32,8 @@ import (
 // The controller always reads Platform CR — single code path.
 func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	platformRequest := []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configApi.PlatformInstanceName}}}
+	// TODO: Remove this migration once upgrades from 3.6 are no longer supported.
+	migration := newLegacyMigration()
 
 	b := reconciler.ReconcilerFor(mgr, &configApi.Platform{}).
 		WithInstanceName("modules").
@@ -61,7 +63,8 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 			deploy.WithContinueOnError(),
 		)).
 		WithAction(coordinateDAG).
-		WithAction(aggregatePlatformModulesStatus)
+		WithAction(aggregatePlatformModulesStatus).
+		WithAction(migration.run)
 
 	statusPredicate := dependentpredicates.New(dependentpredicates.WithWatchStatus(true))
 

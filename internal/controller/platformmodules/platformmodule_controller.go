@@ -75,8 +75,12 @@ func NewPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		WithAction(checkModuleUpgradeGates).
 		WithAction(injectModuleEnv).
 		WithAction(injectModulePlatformConfig).
+		WithAction(labelOperatorDeployments).
 		WithAction(deploy.NewAction(
-			deploy.WithPreviousFieldOwners("datasciencecluster"),
+			// Migrate SSA ownership from datasciencecluster on upgrades from 3.5
+			// and from platform on upgrades from 3.6.
+			// TODO: remove the legacy once upgrade from 3.5 is no longer supported
+			deploy.WithPreviousFieldOwners("datasciencecluster", "platform"),
 			deploy.WithCache(),
 			deploy.WithApplyOrder(),
 			deploy.WithContinueOnError(),
@@ -115,7 +119,10 @@ func NewPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		return registeredPlatformModuleRequests(ctx, mgr.GetClient())
 	})
 
-	_, err := b.WithConditions(reconciler.DependentConditions(status.ConditionTypeModuleCRReady)...).Build(ctx)
+	_, err := b.WithConditions(reconciler.DependentConditions(
+		status.ConditionTypeModuleCRReady,
+		status.ConditionDeploymentsAvailable,
+	)...).Build(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create platformmodule controller: %w", err)
 	}

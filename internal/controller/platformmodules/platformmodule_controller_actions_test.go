@@ -630,7 +630,8 @@ func completionFixture(t *testing.T) (*configApi.PlatformModule, unstructured.Un
 
 func completionRequest(pm *configApi.PlatformModule, cli client.Client, desired unstructured.Unstructured) *odhtype.ReconciliationRequest {
 	return &odhtype.ReconciliationRequest{Instance: pm, Client: cli, Release: testRelease("2.0.0"), Resources: []unstructured.Unstructured{desired},
-		Conditions: conditionstest.NewManager(pm, status.ConditionTypeReady, status.ConditionTypeProvisioningSucceeded, status.ConditionTypeModuleCRReady),
+		Conditions: conditionstest.NewManager(pm, status.ConditionTypeReady, status.ConditionTypeProvisioningSucceeded,
+			status.ConditionTypeModuleCRReady, status.ConditionDeploymentsAvailable),
 	}
 }
 
@@ -664,18 +665,15 @@ func TestCompletionChecksDeletionOnNextReconcile(t *testing.T) {
 	g.Expect(pm.Status.Resources).To(Equal([]configApi.ResourceRef{{Group: "apps", Version: "v1", Kind: gvk.Deployment.Kind, Namespace: "apps", Name: "operator"}}))
 }
 
-func TestCompletionUsesModuleReadinessWithoutInspectingOperatorResources(t *testing.T) {
+func TestCompletionSurvivesOperatorStatusReadError(t *testing.T) {
 	g := NewWithT(t)
 	pm, desired, stale := completionFixture(t)
 	handler, ok := modules.DefaultRegistry().Lookup("testmod").(*stubModuleHandler)
 	g.Expect(ok).To(BeTrue())
 	handler.moduleStatus.Conditions[0].Status = metav1.ConditionFalse
 	cli, err := fakeclient.New(fakeclient.WithObjects(stale), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
-		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-			if key == client.ObjectKeyFromObject(&desired) {
-				return errors.New("completion must not read operator resource status")
-			}
-			return c.Get(ctx, key, obj, opts...)
+		List: func(context.Context, client.WithWatch, client.ObjectList, ...client.ListOption) error {
+			return errors.New("deployment status temporarily unavailable")
 		},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
@@ -684,6 +682,10 @@ func TestCompletionUsesModuleReadinessWithoutInspectingOperatorResources(t *test
 	g.Expect(updatePlatformModuleStatus(t.Context(), completionRequest(pm, cli, desired))).To(Succeed())
 	g.Expect(pm.Status.Release.Version.String()).To(Equal("2.0.0"))
 	g.Expect(pm.Status.Resources).To(Equal(resourceRefs([]unstructured.Unstructured{desired})))
+	g.Expect(conditions.FindStatusCondition(pm, status.ConditionDeploymentsAvailable)).To(HaveValue(And(
+		HaveField("Status", metav1.ConditionUnknown),
+		HaveField("Message", ContainSubstring("deployment status temporarily unavailable")),
+	)))
 	g.Expect(conditions.FindStatusCondition(pm, status.ConditionTypeModuleCRReady).Status).To(Equal(metav1.ConditionFalse))
 	g.Expect(k8serr.IsNotFound(cli.Get(t.Context(), client.ObjectKeyFromObject(stale), stale))).To(BeTrue())
 }

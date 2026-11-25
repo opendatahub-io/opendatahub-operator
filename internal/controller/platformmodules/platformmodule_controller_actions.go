@@ -25,13 +25,17 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
+
+const platformModuleNameLabel = labels.ODHPlatformPrefix + "/module"
 
 // buildModulePlatformContext constructs a modules.PlatformContext scoped to
 // a single PlatformModule reconcile. Unlike the Platform controller's own
@@ -250,7 +254,7 @@ func handlePlatformModuleDeletion(ctx context.Context, rr *odhtype.Reconciliatio
 		if err := rr.Client.Get(ctx, client.ObjectKey{Name: configApi.PlatformInstanceName}, platform); err != nil && !k8serr.IsNotFound(err) {
 			return fmt.Errorf("checking whether module %s was re-enabled: %w", name, err)
 		}
-		if crState != modules.CRStateAlive || !modules.PlatformOwnsTracker(platform, pm) || !platform.DeletionTimestamp.IsZero() ||
+		if crState != modules.CRStateAlive || !modules.PlatformOwnsResource(platform, pm) || !platform.DeletionTimestamp.IsZero() ||
 			!modules.DefaultRegistry().IsEnabled(name) || !handler.IsEnabled(&platform.Spec.Modules) {
 			return fmt.Errorf("module CR for %s still exists; waiting for its deletion before operator cleanup", name)
 		}
@@ -422,7 +426,7 @@ func isUnremovablePlatformModuleResource(ref configApi.ResourceRef) bool {
 
 // updatePlatformModuleStatus is the last reconciliation action: finish stale
 // cleanup after a successful apply, then publish inventory and release.
-// Runtime module readiness remains independent of that durable deployment commit.
+// Deployment availability and module CR readiness are reported separately from that commit.
 func updatePlatformModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	pm, ok := rr.Instance.(*configApi.PlatformModule)
 	if !ok {
@@ -433,6 +437,7 @@ func updatePlatformModuleStatus(ctx context.Context, rr *odhtype.ReconciliationR
 		return fmt.Errorf("no module handler registered for %q", pm.GetName())
 	}
 	defer updateModuleCRCondition(ctx, rr, handler)
+	defer updateOperatorDeploymentCondition(ctx, rr, pm)
 
 	if rr.SkipDeploy {
 		// The runlevel gate already scheduled a retry. Waiting must not mark a
@@ -453,6 +458,39 @@ func updatePlatformModuleStatus(ctx context.Context, rr *odhtype.ReconciliationR
 	pm.Status.Resources = resourceRefs(rr.Resources)
 	pm.Status.Release = rr.Release
 	return nil
+}
+
+// TODO: configure the label in the deploy action once supported by the framework
+// labelOperatorDeployments scopes the shared availability check to this module.
+func labelOperatorDeployments(_ context.Context, rr *odhtype.ReconciliationRequest) error {
+	for i := range rr.Resources {
+		if isDeployment(&rr.Resources[i]) {
+			resources.SetLabel(&rr.Resources[i], platformModuleNameLabel, rr.Instance.GetName())
+		}
+	}
+	return nil
+}
+
+func updateOperatorDeploymentCondition(ctx context.Context, rr *odhtype.ReconciliationRequest, pm *configApi.PlatformModule) {
+	hasDeployments := slices.ContainsFunc(pm.Status.Resources, func(ref configApi.ResourceRef) bool {
+		return ref.GroupVersionKind() == gvk.Deployment
+	})
+	if !hasDeployments {
+		rr.Conditions.MarkTrue(status.ConditionDeploymentsAvailable)
+		return
+	}
+
+	check := deployments.NewAction(
+		deployments.InNamespace(metav1.NamespaceAll),
+		deployments.WithoutAutomaticPartOfDefault(),
+		deployments.WithSelectorLabel(platformModuleNameLabel, pm.Name),
+	)
+	if err := check(ctx, rr); err != nil {
+		rr.Conditions.MarkUnknown(status.ConditionDeploymentsAvailable,
+			conditions.WithReason(status.ConditionDeploymentsNotAvailableReason),
+			conditions.WithMessage(err.Error()),
+		)
+	}
 }
 
 func updateModuleCRCondition(ctx context.Context, rr *odhtype.ReconciliationRequest, handler modules.ModuleHandler) {
