@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -26,6 +27,7 @@ const (
 	metricsHelmKey               = "metrics"
 	serviceMonitorHelmKey        = "serviceMonitor"
 	enabledHelmKey               = "enabled"
+	operatorImageEnv             = "OPERATOR_IMAGE"
 )
 
 type handler struct {
@@ -53,6 +55,18 @@ func NewHandler() *handler {
 			},
 		},
 	}
+}
+
+// GetExtraEnv sets OPERATOR_IMAGE to the same pinned image the platform writes
+// into the controller container. odh-observability runs that image as the
+// method-gate sidecar of its proxy workloads in the monitoring namespace, so
+// keeping the chart default would deploy an unpinned upstream tag there.
+func (h *handler) GetExtraEnv() map[string]string {
+	img := os.Getenv(h.Config.ControllerImage)
+	if img == "" {
+		return nil
+	}
+	return map[string]string{operatorImageEnv: img}
 }
 
 // GetOperatorManifests renders the odh-observability chart. On RHOAI the

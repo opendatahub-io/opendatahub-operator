@@ -598,6 +598,22 @@ func TestGetRelatedImages(t *testing.T) {
 	))
 }
 
+func TestGetExtraEnv_PinsOperatorImageToControllerImage(t *testing.T) {
+	g := NewWithT(t)
+	t.Setenv("RELATED_IMAGE_ODH_OBSERVABILITY_IMAGE", "registry.example.com/odh-observability@sha256:abc123")
+
+	g.Expect(monitoring.NewHandler().GetExtraEnv()).Should(Equal(map[string]string{
+		"OPERATOR_IMAGE": "registry.example.com/odh-observability@sha256:abc123",
+	}))
+}
+
+func TestGetExtraEnv_KeepsChartDefaultWhenControllerImageUnset(t *testing.T) {
+	g := NewWithT(t)
+	t.Setenv("RELATED_IMAGE_ODH_OBSERVABILITY_IMAGE", "")
+
+	g.Expect(monitoring.NewHandler().GetExtraEnv()).Should(BeNil())
+}
+
 func TestGetName(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
