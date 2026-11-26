@@ -29,7 +29,9 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	dashboardmodule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
@@ -65,6 +67,11 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 
 	b = b.
 		Watches(
+			&corev1.Namespace{},
+			reconciler.WithEventMapper(func(ctx context.Context, object client.Object) []reconcile.Request {
+				return watchDashboardNamespacedRBACTargets(ctx, mgr.GetClient(), object)
+			})).
+		Watches(
 			&dsciv2.DSCInitialization{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
 				return watchDataScienceClusters(ctx, mgr.GetClient())
@@ -96,6 +103,10 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		WithAction(cleanupDisabledModuleCRs).
 		WithAction(provisionComponents).
 		WithAction(provisionModuleCRs).
+		// Namespace consent is synchronized after module CR provisioning so a
+		// transient Namespace/webhook failure cannot prevent the Dashboard CR
+		// from being created or restored. Namespace watches retry this action.
+		WithAction(syncDashboardNamespacedRBACOptIns).
 		WithAction(deploy.NewAction(
 			deploy.WithContinueOnError(),
 			deploy.WithCache(),
@@ -109,4 +120,24 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 	}
 
 	return nil
+}
+
+func watchDashboardNamespacedRBACTargets(ctx context.Context, cli client.Client, object client.Object) []reconcile.Request {
+	var dscs dscApi.DataScienceClusterList
+	if err := cli.List(ctx, &dscs); err != nil {
+		return nil
+	}
+	release := cluster.GetRelease()
+	requests := make([]reconcile.Request, 0, len(dscs.Items))
+	for i := range dscs.Items {
+		dsc := &dscs.Items[i]
+		targets := dashboardmodule.NamespacedRBACTargets(buildDSCContext(dsc), &modules.ModuleCRConfig{Release: release})
+		for _, target := range targets {
+			if target == object.GetName() {
+				requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(dsc)})
+				break
+			}
+		}
+	}
+	return requests
 }

@@ -21,6 +21,7 @@ import (
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	dashboardmodule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
@@ -73,6 +74,14 @@ func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcil
 
 func buildDSCContext(dsc *dscApi.DataScienceCluster) *modules.DSCContext {
 	return &modules.DSCContext{DSC: dsc}
+}
+
+func syncDashboardNamespacedRBACOptIns(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	instance, ok := rr.Instance.(*dscApi.DataScienceCluster)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a dscApi.DataScienceCluster", rr.Instance)
+	}
+	return dashboardmodule.SyncNamespacedRBACOptIns(ctx, rr.Client, buildDSCContext(instance), &modules.ModuleCRConfig{Release: rr.Release})
 }
 
 func syncPlatformCR(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
