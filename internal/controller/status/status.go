@@ -79,6 +79,7 @@ const (
 	ConditionTypeProvisioningSucceeded           = "ProvisioningSucceeded"
 	ConditionDeploymentsNotAvailableReason       = "DeploymentsNotReady"
 	ConditionMaaSPrerequisitesAvailable          = "MaaSPrerequisitesAvailable"
+	ConditionGPUOperatorPrerequisiteAvailable    = "GPUOperatorPrerequisiteAvailable"
 	ConditionDeploymentsAvailable                = "DeploymentsAvailable"
 	ConditionDependenciesAvailable               = "DependenciesAvailable"
 	ConditionArgoWorkflowAvailable               = "ArgoWorkflowAvailable"
@@ -206,6 +207,21 @@ const (
 	AuthProxyOIDCIssuerURLEmptyMessage       = "OIDC issuerURL cannot be empty"
 	AuthProxyOIDCSecretRefNameEmptyMessage   = "OIDC clientSecretRef.name cannot be empty" //nolint:gosec // This is an error message, not a credential
 	AuthProxyExternalAuthNoDeploymentMessage = "Cluster uses external authentication, no gateway auth proxy deployed"
+)
+
+// For GPU Operator prerequisite checks.
+const (
+	GPUOperatorPrerequisiteMetReason       = "GPUOperatorPrerequisiteMet"
+	GPUOperatorPrerequisiteMissingReason   = "GPUOperatorPrerequisiteMissing"
+	GPUOperatorPrerequisiteNotUsableReason = "GPUOperatorPrerequisiteNotUsable"
+	GPUOperatorPrerequisiteUnknownReason   = "GPUOperatorPrerequisiteUnknown"
+
+	GPUOperatorPrerequisiteMetMessage            = "NVIDIA GPU Operator ClusterPolicy CRD is present"
+	GPUOperatorPrerequisiteMissingMessage        = "NVIDIA GPU Operator ClusterPolicy CRD is absent; GPU attribution recording rules will not produce data"
+	GPUOperatorPrerequisiteNotServingMessage     = "NVIDIA GPU Operator ClusterPolicy CRD does not serve v1; GPU attribution recording rules will not produce data"
+	GPUOperatorPrerequisiteNotEstablishedMessage = "NVIDIA GPU Operator ClusterPolicy CRD is not established; GPU attribution recording rules will not produce data"
+	GPUOperatorPrerequisiteTerminatingMessage    = "NVIDIA GPU Operator ClusterPolicy CRD is terminating; GPU attribution recording rules will not produce data"
+	GPUOperatorPrerequisiteUnknownMessage        = "Failed to detect NVIDIA GPU Operator ClusterPolicy CRD"
 )
 
 // For v3 upgrade sanity checks.
