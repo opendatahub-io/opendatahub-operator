@@ -270,6 +270,11 @@ manifests: controller-gen kustomize yq ## Generate WebhookConfiguration, Cluster
 ifneq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	@$(CONTROLLER_GEN) rbac:roleName=controller-manager-role paths="$(manifests-paths)" output:rbac:artifacts:config=config/rbac
 endif
+	@# Remove existing CRD bases before generating: controller-gen never
+	@# deletes the file of an API that was removed from the Go types, so
+	@# without this a retired CRD would survive regeneration and keep
+	@# being applied by "make install" without ever showing a diff.
+	@rm -f $(CONFIG_DIR)/crd/bases/*.yaml
 	@$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="$(manifests-paths)" output:crd:artifacts:config=$(CONFIG_DIR)/crd/bases output:rbac:artifacts:config=$(CONFIG_DIR)/rbac output:webhook:artifacts:config=$(CONFIG_DIR)/webhook
 	@$(call add-crd-to-kustomization,$(CONFIG_DIR)/crd/bases)
 	@$(call fetch-external-crds,github.com/openshift/api,route/v1)
@@ -288,14 +293,20 @@ endif
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_authentications.yaml
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/oauth.openshift.io_oauthclients.yaml
 	@# Copy rhaii CRDs to shared overlay and generate kustomization.
+	@# Remove stale files first so retired CRDs do not survive the copy.
 	@mkdir -p config/rhaii/crd/bases
+	@rm -f config/rhaii/crd/bases/*.yaml
 	@cp "$(CONFIG_DIR)/crd/bases/config.opendatahub.io_platforms.yaml" config/rhaii/crd/bases/
 	@cp "$(CONFIG_DIR)/crd/bases/services.platform.opendatahub.io_gatewayconfigs.yaml" config/rhaii/crd/bases/
 	@cp "$(CONFIG_DIR)/crd/kustomizeconfig.yaml" config/rhaii/crd/kustomizeconfig.yaml
 	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
 	@# Generate the RHAII webhook manifest with only the GatewayConfig validator.
 	@"$(YQ)" eval 'select(.kind == "ValidatingWebhookConfiguration") | .webhooks = [.webhooks[] | select(.name == "gatewayconfig-validator.opendatahub.io")]' "$(CONFIG_DIR)/webhook/manifests.yaml" > config/rhaii/webhook/manifests.yaml
-MANIFEST_GENERATED_FILES = config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml config/rhaii/webhook/manifests.yaml
+# Only the untracked generated artifacts are listed here: the CRD bases,
+# RBAC roles and webhook manifests are tracked, so clean-manifests must
+# not delete them (nor any unstaged edits to them). Reset tracked
+# manifests with "git checkout" or regenerate them with "make manifests".
+MANIFEST_GENERATED_FILES = config/crd/bases/_.yaml config/rhoai/crd/bases/_.yaml config/crd/external config/rhoai/crd/external
 
 .PHONY: manifests-all
 manifests-all:
@@ -303,8 +314,12 @@ manifests-all:
 	$(MAKE) manifests ODH_PLATFORM_TYPE=rhoai
 	$(MAKE) manifests-ccm
 
+.PHONY: manifests-odh
+manifests-odh: ## Generate the OpenDataHub manifests regardless of ODH_PLATFORM_TYPE (envtest suites load the ODH CRD paths).
+	$(MAKE) manifests ODH_PLATFORM_TYPE=OpenDataHub
+
 .PHONY: clean-manifests
-clean-manifests: ## Remove generated manifest files (CRDs, RBAC, webhooks) for all variants.
+clean-manifests: ## Remove untracked generated manifest files (external CRDs, controller-gen artifacts); tracked manifests are kept.
 	rm -rf -- $(MANIFEST_GENERATED_FILES)
 	$(foreach p,$(CCM_PROVIDERS),rm -rf -- "$(call ccm-config-dir,$(p))/crd/bases" "$(call ccm-config-dir,$(p))/rbac/role.yaml" "$(call ccm-config-dir,$(p))/webhook/manifests.yaml";)
 
@@ -713,11 +728,7 @@ test: unit-test e2e-test
 unit-test: unit-test-operator unit-test-clusterhealth unit-test-manifest-tools unit-test-scoperules unit-test-e2e-scope-completeness unit-test-e2e-installation
 
 .PHONY: unit-test-operator
-unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
-	@if [ ! -d "$(CONFIG_DIR)/crd/bases" ]; then \
-		echo "Error: $(CONFIG_DIR)/crd/bases folder does not exist. Please run 'make manifests-all' first."; \
-		exit 1; \
-	fi
+unit-test-operator: manifests-odh envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
 	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
     	${GINKGO} -r \
         		--procs=8 \

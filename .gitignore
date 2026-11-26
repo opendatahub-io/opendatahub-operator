@@ -74,12 +74,16 @@ local.mk
 /catalog/
 
 # Generated files are tracked so their changes are reviewable in pull
-# requests and the kustomize configs stay valid on a fresh clone;
-# test-required-files-updated fails a pull request that lets them go
-# stale. Not tracked: third-party CRDs from the Go module cache
-# (crd/external), bundle build outputs, the _.yaml controller-gen
-# artifact, and the cloudmanager manifests (separate operator with its
-# own generation prerequisites).
+# requests; test-required-files-updated fails a pull request that lets
+# them go stale. The tracked kustomizations make the crd, rbac and
+# webhook subtrees buildable on a fresh clone, but "kustomize build
+# config/default" (and config/rhoai/default) additionally needs the
+# generated manager kustomization, which remains untracked ("make
+# manager-kustomization" creates it from the tracked
+# kustomization.yaml.in). Not tracked: third-party CRDs from the Go
+# module cache (crd/external), bundle build outputs, the _.yaml
+# controller-gen artifact, and the cloudmanager manifests (separate
+# operator with its own generation prerequisites).
 config/crd/bases/_.yaml
 config/crd/external
 config/rhoai/crd/bases/_.yaml
