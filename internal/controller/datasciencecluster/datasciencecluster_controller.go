@@ -36,6 +36,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	odhresources "github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) error {
@@ -82,6 +83,14 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			}),
 			reconciler.WithPredicates(
 				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
+			)).
+		Watches(
+			odhresources.GvkToUnstructured(gvk.CustomResourceDefinition),
+			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
+				return watchDataScienceClusters(ctx, mgr.GetClient())
+			}),
+			reconciler.WithPredicates(
+				resources.CreatedOrUpdatedOrDeletedNamed(gvk.GPUOperatorClusterPolicyCRDName),
 			))
 
 	b = modules.AddModuleCRDWatches(b, func(ctx context.Context, _ client.Object) []reconcile.Request {
@@ -90,6 +99,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 
 	_, err := b.
 		WithAction(checkPreConditions).
+		WithAction(checkGPUOperatorPrerequisite).
 		WithAction(updateStatus).
 		WithAction(syncPlatformCR).
 		WithAction(cleanupDisabledComponents).

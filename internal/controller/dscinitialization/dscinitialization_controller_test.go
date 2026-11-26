@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/funcr"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -19,6 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
@@ -280,4 +283,325 @@ func TestNoLegacyKeysInLogs(t *testing.T) {
 			)
 		}
 	}
+}
+
+func TestApplyGPUOperatorPrerequisite(t *testing.T) {
+	readErr := errors.New("forbidden")
+
+	for _, tc := range []struct {
+		name         string
+		crdPresent   bool
+		served       bool
+		established  bool
+		getErr       error
+		initial      []common.Condition
+		wantStatus   metav1.ConditionStatus
+		wantReason   string
+		wantMessage  string
+		wantSeverity common.ConditionSeverity
+	}{
+		{
+			name:        "ClusterPolicy CRD present",
+			crdPresent:  true,
+			served:      true,
+			established: true,
+			wantStatus:  metav1.ConditionTrue,
+			wantReason:  status.GPUOperatorPrerequisiteMetReason,
+			wantMessage: status.GPUOperatorPrerequisiteMetMessage,
+		},
+		{
+			name:         "ClusterPolicy CRD absent",
+			wantStatus:   metav1.ConditionFalse,
+			wantReason:   status.GPUOperatorPrerequisiteMissingReason,
+			wantMessage:  status.GPUOperatorPrerequisiteMissingMessage,
+			wantSeverity: common.ConditionSeverityInfo,
+		},
+		{
+			name:         "ClusterPolicy CRD not serving v1",
+			crdPresent:   true,
+			established:  true,
+			wantStatus:   metav1.ConditionFalse,
+			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
+			wantMessage:  status.GPUOperatorPrerequisiteNotServingMessage,
+			wantSeverity: common.ConditionSeverityInfo,
+		},
+		{
+			name:         "served ClusterPolicy CRD that is not established",
+			crdPresent:   true,
+			served:       true,
+			wantStatus:   metav1.ConditionFalse,
+			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
+			wantMessage:  status.GPUOperatorPrerequisiteNotEstablishedMessage,
+			wantSeverity: common.ConditionSeverityInfo,
+		},
+		{
+			name:         "CRD read error reports prerequisite unknown",
+			getErr:       readErr,
+			wantStatus:   metav1.ConditionUnknown,
+			wantReason:   status.GPUOperatorPrerequisiteUnknownReason,
+			wantMessage:  status.GPUOperatorPrerequisiteUnknownMessage + ": " + readErr.Error(),
+			wantSeverity: common.ConditionSeverityInfo,
+		},
+		{
+			name:        "False Info condition transitions to True and clears severity",
+			crdPresent:  true,
+			served:      true,
+			established: true,
+			initial: []common.Condition{{
+				Type:     status.ConditionGPUOperatorPrerequisiteAvailable,
+				Status:   metav1.ConditionFalse,
+				Reason:   status.GPUOperatorPrerequisiteMissingReason,
+				Message:  status.GPUOperatorPrerequisiteMissingMessage,
+				Severity: common.ConditionSeverityInfo,
+			}},
+			wantStatus:  metav1.ConditionTrue,
+			wantReason:  status.GPUOperatorPrerequisiteMetReason,
+			wantMessage: status.GPUOperatorPrerequisiteMetMessage,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			var opts []fakeclient.ClientOpts
+			if tc.crdPresent {
+				crd := &apiextensionsv1.CustomResourceDefinition{
+					ObjectMeta: metav1.ObjectMeta{Name: gvk.GPUOperatorClusterPolicyCRDName},
+					Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+						Group: "nvidia.com",
+						Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+							Name:    gvk.GPUOperatorClusterPolicy.Version,
+							Served:  tc.served,
+							Storage: true,
+						}},
+					},
+				}
+				if tc.established {
+					crd.Status.Conditions = []apiextensionsv1.CustomResourceDefinitionCondition{{
+						Type:   apiextensionsv1.Established,
+						Status: apiextensionsv1.ConditionTrue,
+					}}
+				}
+				opts = append(opts, fakeclient.WithObjects(crd))
+			}
+
+			if tc.getErr != nil {
+				opts = append(opts, fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+					Get: func(ctx context.Context, cli client.WithWatch, key client.ObjectKey, obj client.Object, getOpts ...client.GetOption) error {
+						if obj.GetObjectKind().GroupVersionKind() == gvk.CustomResourceDefinition {
+							return tc.getErr
+						}
+						return cli.Get(ctx, key, obj, getOpts...)
+					},
+				}))
+			}
+
+			cli, err := fakeclient.New(opts...)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			conditions := append([]common.Condition(nil), tc.initial...)
+			condStatus, reason, message := status.GPUOperatorPrerequisite(t.Context(), cli)
+			applyGPUOperatorPrerequisite(&conditions, condStatus, reason, message)
+
+			g.Expect(conditions).To(HaveLen(1))
+			g.Expect(conditions[0].Type).To(Equal(status.ConditionGPUOperatorPrerequisiteAvailable))
+			g.Expect(conditions[0].Status).To(Equal(tc.wantStatus))
+			g.Expect(conditions[0].Reason).To(Equal(tc.wantReason))
+			g.Expect(conditions[0].Message).To(Equal(tc.wantMessage))
+			g.Expect(conditions[0].Severity).To(Equal(tc.wantSeverity))
+		})
+	}
+}
+
+func TestRequeueAfterGPUOperatorPrerequisite(t *testing.T) {
+	g := NewWithT(t)
+
+	g.Expect(requeueAfterGPUOperatorPrerequisite(metav1.ConditionUnknown)).To(Equal(ctrl.Result{RequeueAfter: 30 * time.Second}))
+	g.Expect(requeueAfterGPUOperatorPrerequisite(metav1.ConditionFalse)).To(Equal(ctrl.Result{}))
+	g.Expect(requeueAfterGPUOperatorPrerequisite(metav1.ConditionTrue)).To(Equal(ctrl.Result{}))
+}
+
+func TestProvisioningErrorWithGPUPrerequisiteReturnsOriginalError(t *testing.T) {
+	g := NewWithT(t)
+
+	provErr := errors.New("create operator resources failed")
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{Name: "default-dsci"},
+	}
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(dsci),
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			SubResourceUpdate: func(context.Context, client.Client, string, client.Object, ...client.SubResourceUpdateOption) error {
+				return errors.New("status update failed")
+			},
+		}),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	reconciler := &DSCInitializationReconciler{Client: cli}
+	result, gotErr := reconciler.provisioningErrorWithGPUPrerequisite(t.Context(), dsci, provErr)
+
+	g.Expect(result).To(Equal(ctrl.Result{}))
+	g.Expect(gotErr).To(MatchError(provErr))
+}
+
+// recordingStatusClient records each status update. updateErr, when set, is
+// returned instead of persisting so a failed write can be asserted.
+func recordingStatusClient(t *testing.T, dsci *dsciv2.DSCInitialization, extra []client.Object, updateErr error) (client.Client, *[]*dsciv2.DSCInitialization) {
+	t.Helper()
+
+	var updates []*dsciv2.DSCInitialization
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(append([]client.Object{dsci}, extra...)...),
+		fakeclient.WithStatusSubresources(dsci),
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			SubResourceUpdate: func(_ context.Context, _ client.Client, subResource string, obj client.Object, _ ...client.SubResourceUpdateOption) error {
+				if subResource != "status" {
+					return nil
+				}
+				saved, ok := obj.(*dsciv2.DSCInitialization)
+				if !ok {
+					return errors.New("status update object is not DSCInitialization")
+				}
+				updates = append(updates, saved.DeepCopy())
+				return updateErr
+			},
+		}),
+	)
+	if err != nil {
+		t.Fatalf("fake client: %v", err)
+	}
+	return cli, &updates
+}
+
+func findCondition(conditions []common.Condition, conditionType string) (common.Condition, bool) {
+	for _, c := range conditions {
+		if c.Type == conditionType {
+			return c, true
+		}
+	}
+	return common.Condition{}, false
+}
+
+func TestRecordReadyWritesGPUConditionWithReconcileCompleted(t *testing.T) {
+	g := NewWithT(t)
+
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{Name: "default-dsci"},
+		Status: dsciv2.DSCInitializationStatus{
+			Conditions: []common.Condition{{
+				Type:     status.ConditionGPUOperatorPrerequisiteAvailable,
+				Status:   metav1.ConditionFalse,
+				Reason:   status.GPUOperatorPrerequisiteMissingReason,
+				Message:  status.GPUOperatorPrerequisiteMissingMessage,
+				Severity: common.ConditionSeverityInfo,
+			}},
+		},
+	}
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: gvk.GPUOperatorClusterPolicyCRDName},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: "nvidia.com",
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    gvk.GPUOperatorClusterPolicy.Version,
+				Served:  true,
+				Storage: true,
+			}},
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			Conditions: []apiextensionsv1.CustomResourceDefinitionCondition{{
+				Type:   apiextensionsv1.Established,
+				Status: apiextensionsv1.ConditionTrue,
+			}},
+		},
+	}
+	cli, updates := recordingStatusClient(t, dsci, []client.Object{crd}, nil)
+
+	gotStatus, err := (&DSCInitializationReconciler{Client: cli}).recordReady(t.Context(), dsci)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(gotStatus).To(Equal(metav1.ConditionTrue))
+	g.Expect(*updates).To(HaveLen(1))
+
+	written := (*updates)[0]
+	g.Expect(written.Status.Phase).To(Equal(status.PhaseReady))
+
+	reconcileComplete, ok := findCondition(written.Status.Conditions, status.ConditionTypeReconcileComplete)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(reconcileComplete.Status).To(Equal(metav1.ConditionTrue))
+	g.Expect(reconcileComplete.Reason).To(Equal(status.ReconcileCompleted))
+	g.Expect(reconcileComplete.Message).To(Equal(status.ReconcileCompletedMessage))
+
+	gpu, ok := findCondition(written.Status.Conditions, status.ConditionGPUOperatorPrerequisiteAvailable)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(gpu.Status).To(Equal(metav1.ConditionTrue))
+	g.Expect(gpu.Reason).To(Equal(status.GPUOperatorPrerequisiteMetReason))
+	g.Expect(gpu.Message).To(Equal(status.GPUOperatorPrerequisiteMetMessage))
+	g.Expect(gpu.Severity).To(BeEmpty())
+}
+
+func TestRecordOperatorResourceFailureWritesGPUConditionWithReconcileFailed(t *testing.T) {
+	g := NewWithT(t)
+
+	provErr := errors.New("create operator resources failed")
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{Name: "default-dsci"},
+		Status: dsciv2.DSCInitializationStatus{
+			Conditions: []common.Condition{{
+				Type:    status.ConditionGPUOperatorPrerequisiteAvailable,
+				Status:  metav1.ConditionTrue,
+				Reason:  status.GPUOperatorPrerequisiteMetReason,
+				Message: status.GPUOperatorPrerequisiteMetMessage,
+			}},
+		},
+	}
+	cli, updates := recordingStatusClient(t, dsci, nil, nil)
+
+	err := (&DSCInitializationReconciler{Client: cli}).recordOperatorResourceFailure(t.Context(), dsci, provErr)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(*updates).To(HaveLen(1))
+
+	written := (*updates)[0]
+	g.Expect(written.Status.Phase).To(Equal(status.PhaseError))
+
+	reconcileComplete, ok := findCondition(written.Status.Conditions, status.ConditionTypeReconcileComplete)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(reconcileComplete.Status).To(Equal(metav1.ConditionUnknown))
+	g.Expect(reconcileComplete.Reason).To(Equal(status.ReconcileFailed))
+	g.Expect(reconcileComplete.Message).To(Equal(provErr.Error()))
+
+	gpu, ok := findCondition(written.Status.Conditions, status.ConditionGPUOperatorPrerequisiteAvailable)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(gpu.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(gpu.Reason).To(Equal(status.GPUOperatorPrerequisiteMissingReason))
+	g.Expect(gpu.Message).To(Equal(status.GPUOperatorPrerequisiteMissingMessage))
+	g.Expect(gpu.Severity).To(Equal(common.ConditionSeverityInfo))
+}
+
+func TestRecordReadyAndOperatorResourceFailureReturnStatusWriteError(t *testing.T) {
+	g := NewWithT(t)
+
+	writeErr := errors.New("status update failed")
+	provErr := errors.New("create operator resources failed")
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{Name: "default-dsci"},
+	}
+
+	readyClient, readyUpdates := recordingStatusClient(t, dsci.DeepCopy(), nil, writeErr)
+	gotStatus, err := (&DSCInitializationReconciler{Client: readyClient}).recordReady(t.Context(), dsci)
+	g.Expect(err).To(MatchError(writeErr))
+	g.Expect(gotStatus).To(Equal(metav1.ConditionFalse))
+	g.Expect(*readyUpdates).To(HaveLen(1))
+	_, ok := findCondition((*readyUpdates)[0].Status.Conditions, status.ConditionTypeReconcileComplete)
+	g.Expect(ok).To(BeTrue())
+	_, ok = findCondition((*readyUpdates)[0].Status.Conditions, status.ConditionGPUOperatorPrerequisiteAvailable)
+	g.Expect(ok).To(BeTrue())
+
+	failureClient, failureUpdates := recordingStatusClient(t, dsci.DeepCopy(), nil, writeErr)
+	err = (&DSCInitializationReconciler{Client: failureClient}).recordOperatorResourceFailure(t.Context(), dsci, provErr)
+	g.Expect(err).To(MatchError(writeErr))
+	g.Expect(*failureUpdates).To(HaveLen(1))
+	reconcileComplete, ok := findCondition((*failureUpdates)[0].Status.Conditions, status.ConditionTypeReconcileComplete)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(reconcileComplete.Reason).To(Equal(status.ReconcileFailed))
+	_, ok = findCondition((*failureUpdates)[0].Status.Conditions, status.ConditionGPUOperatorPrerequisiteAvailable)
+	g.Expect(ok).To(BeTrue())
 }
