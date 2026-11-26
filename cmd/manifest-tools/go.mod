@@ -2,7 +2,7 @@ module github.com/opendatahub-io/opendatahub-operator/v2/cmd/manifest-tools
 
 go 1.26.0
 
-toolchain go1.26.10
+toolchain go1.26.11
 
 require (
 	github.com/google/go-containerregistry v0.21.8
