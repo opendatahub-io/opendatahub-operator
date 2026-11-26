@@ -143,6 +143,21 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(gvk.ServiceMonitorCRDName)),
 	)
 
+	// cert-manager is a prerequisite for the monitoring module but is installed
+	// out of band. Requeue when its CRDs are created so odh-observability is
+	// provisioned promptly once the dependency is satisfied (the documented
+	// recovery path), instead of waiting for the next periodic resync.
+	b = b.Watches(
+		&apiextensionsv1.CustomResourceDefinition{},
+		reconciler.WithEventMapper(func(_ context.Context, _ client.Object) []reconcile.Request {
+			return platformRequest
+		}),
+		reconciler.WithPredicates(predicate.Or(
+			resources.CreatedOrUpdatedOrDeletedNamed(gvk.CertManagerIssuerCRDName),
+			resources.CreatedOrUpdatedOrDeletedNamed(gvk.CertManagerCertificateCRDName),
+		)),
+	)
+
 	b = addModuleCRWatches(b)
 	b = addModuleCRDWatches(b, func(ctx context.Context, _ client.Object) []reconcile.Request {
 		return cluster.WatchDataScienceClusters(ctx, mgr.GetClient())

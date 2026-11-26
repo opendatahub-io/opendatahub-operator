@@ -27,6 +27,7 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/monitor"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhan "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -404,6 +405,35 @@ func waitForModuleCRDeletion(ctx context.Context, rr *odhtype.ReconciliationRequ
 	return nil
 }
 
+// checkModulePrerequisites evaluates the cross-operator APIs a module declares
+// via the optional ModulePrerequisite interface. It returns met=true when the
+// handler declares no prerequisites or all declared APIs are usable. When a
+// prerequisite is missing or still installing, met=false and reason carries a
+// human-readable explanation. A read error (API server failure) is returned as
+// err so the caller can requeue rather than misreport a missing dependency.
+func checkModulePrerequisites(ctx context.Context, cli client.Client, handler ModuleHandler) (bool, string, error) {
+	provider, ok := handler.(ModulePrerequisite)
+	if !ok {
+		return true, "", nil
+	}
+
+	apis := provider.GetRequiredAPIs()
+	if len(apis) == 0 {
+		return true, "", nil
+	}
+
+	result, err := monitor.CheckRequiredAPIs(ctx, cli, apis)
+	if err != nil {
+		return false, "", err
+	}
+
+	if result.ConditionStatus() != metav1.ConditionTrue {
+		return false, result.Message, nil
+	}
+
+	return true, "", nil
+}
+
 // provisionModules iterates over the unified DAG batches (which contain
 // both components and modules) but only provisions entries of KindModule.
 // Readiness gating uses a CompositeChecker that spans both registries, so
@@ -438,6 +468,23 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 				name := handler.GetName()
 
 				if !handler.IsEnabled(platformCtx.Modules) {
+					continue
+				}
+
+				// Skip modules whose cross-operator prerequisites (e.g.
+				// cert-manager for monitoring) are not yet available. Appending
+				// the manifests here would deploy operator resources that
+				// reference the missing API — a webhook Deployment mounting a
+				// Secret that can never be issued. The module is reported
+				// NotReady (DependenciesNotReady) by updateModuleStatus; the
+				// cert-manager CRD watch requeues once the dependency appears.
+				prereqMet, prereqReason, prereqErr := checkModulePrerequisites(ctx, rr.Client, handler)
+				if prereqErr != nil {
+					return fmt.Errorf("checking prerequisites for module %s: %w", name, prereqErr)
+				}
+				if !prereqMet {
+					log.Info("skipping module provisioning, prerequisites not met",
+						"module", name, "reason", prereqReason)
 					continue
 				}
 
@@ -660,6 +707,45 @@ func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationReques
 		}
 
 		eval.enabledCount++
+
+		// Report a missing cross-operator prerequisite (e.g. cert-manager for
+		// monitoring) explicitly. Without this the module would surface as a
+		// vague "has not reported a Ready condition yet" because provisionModules
+		// intentionally skips deploying its operator until the dependency exists.
+		prereqMet, prereqReason, prereqErr := checkModulePrerequisites(ctx, rr.Client, handler)
+		if prereqErr != nil {
+			log.V(1).Info("failed to check module prerequisites", "module", name, "error", prereqErr)
+			eval.notReady = append(eval.notReady, name)
+			eval.perModule = append(eval.perModule, perModuleResult{
+				handler: handler,
+				enabled: true,
+				condition: common.Condition{
+					Type:    condType,
+					Status:  metav1.ConditionUnknown,
+					Reason:  status.NotReadyReason,
+					Message: fmt.Sprintf("Failed to check prerequisites: %v", prereqErr),
+				},
+				submodules: submodules,
+			})
+
+			return nil
+		}
+		if !prereqMet {
+			eval.notReady = append(eval.notReady, name)
+			eval.perModule = append(eval.perModule, perModuleResult{
+				handler: handler,
+				enabled: true,
+				condition: common.Condition{
+					Type:    condType,
+					Status:  metav1.ConditionFalse,
+					Reason:  status.DependenciesNotReadyReason,
+					Message: fmt.Sprintf("Module prerequisites are not available: %s", prereqReason),
+				},
+				submodules: submodules,
+			})
+
+			return nil
+		}
 
 		moduleStatus, err := handler.GetModuleStatus(ctx, rr.Client)
 		if err != nil {

@@ -16,6 +16,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/monitor"
 )
 
 const (
@@ -107,6 +108,21 @@ func (h *handler) PopulatePlatformModule(pm *configApi.PlatformModules, dscCtx *
 
 func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 	return modules != nil && modules.Monitoring.ManagementState == operatorv1.Managed
+}
+
+// GetRequiredAPIs declares cert-manager as a prerequisite for the monitoring
+// module. The odh-observability chart creates cert-manager Issuer and
+// Certificate resources (cert-manager.io/v1) for the operator webhook serving
+// certificate, and the operator Deployment mounts the Secret that cert-manager
+// issues. cert-manager is not installed by this operator, so these CRDs must be
+// present before the chart is deployed; otherwise the Issuer/Certificate applies
+// fail and the operator pod hangs in ContainerCreating waiting for a Secret that
+// is never issued. Implements [modules.ModulePrerequisite].
+func (h *handler) GetRequiredAPIs() []monitor.RequiredAPI {
+	return []monitor.RequiredAPI{
+		{CRDName: gvk.CertManagerIssuerCRDName, GVK: gvk.CertManagerIssuer},
+		{CRDName: gvk.CertManagerCertificateCRDName, GVK: gvk.CertManagerCertificate},
+	}
 }
 
 // BuildModuleCR constructs the Monitoring CR from DSCI spec with
