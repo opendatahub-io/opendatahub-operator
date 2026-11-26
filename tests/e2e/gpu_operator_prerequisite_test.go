@@ -51,12 +51,8 @@ func validateGPUOperatorPrerequisite(t *testing.T) {
 	err = tc.Client().Get(t.Context(), types.NamespacedName{Name: crdName}, existing)
 	if err == nil {
 		t.Logf("ClusterPolicy CRD %s is already installed; leaving it in place", crdName)
-		if tc.clusterPolicyBecomesMet(t, crdName) {
-			tc.ensureGPUOperatorPrerequisite(metav1.ConditionTrue, status.GPUOperatorPrerequisiteMetReason, "")
-		} else {
-			t.Logf("ClusterPolicy CRD %s is terminating, not serving v1, or not Established; expecting NotUsable", crdName)
-			tc.ensureGPUOperatorPrerequisite(metav1.ConditionFalse, status.GPUOperatorPrerequisiteNotUsableReason, string(common.ConditionSeverityInfo))
-		}
+		tc.waitForClusterPolicySettled(t, crdName)
+		tc.ensureReportedGPUOperatorPrerequisite()
 		return
 	}
 	require.True(t, k8serr.IsNotFound(err), "failed to read ClusterPolicy CRD: %v", err)
@@ -94,11 +90,11 @@ func validateGPUOperatorPrerequisite(t *testing.T) {
 	tc.ensureGPUOperatorPrerequisite(metav1.ConditionFalse, status.GPUOperatorPrerequisiteMissingReason, string(common.ConditionSeverityInfo))
 }
 
-// clusterPolicyBecomesMet reports whether the installed CRD can satisfy Met.
-// Established alone is not enough: a terminating CRD or one that does not
-// serve v1 returns false immediately so the caller can expect NotUsable. A
-// served v1 CRD that is not terminating is polled until it is Established.
-func (tc *gpuOperatorPrerequisiteTestCtx) clusterPolicyBecomesMet(t *testing.T, name string) bool {
+// waitForClusterPolicySettled waits until the CRD is Established or
+// Terminating. It does not decide which operator condition that state
+// requires. A CRD that is still neither when the wait ends fails the test,
+// because it may become Established immediately afterward.
+func (tc *gpuOperatorPrerequisiteTestCtx) waitForClusterPolicySettled(t *testing.T, name string) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(t.Context(), tc.TestTimeouts.defaultEventuallyTimeout)
@@ -108,36 +104,37 @@ func (tc *gpuOperatorPrerequisiteTestCtx) clusterPolicyBecomesMet(t *testing.T, 
 	defer ticker.Stop()
 
 	for {
-		crd := &apiextv1.CustomResourceDefinition{}
-		err := tc.Client().Get(t.Context(), types.NamespacedName{Name: name}, crd)
-		require.NoError(t, err, "failed to read ClusterPolicy CRD %s", name)
-		if crdConditionTrue(crd, apiextv1.Terminating) || !clusterPolicyServesV1(crd) {
-			return false
-		}
-		if crdConditionTrue(crd, apiextv1.Established) {
-			return true
+		if clusterPolicySettled(tc.readClusterPolicyCRD(t, name)) {
+			return
 		}
 
 		select {
 		case <-ctx.Done():
-			return false
+			if clusterPolicySettled(tc.readClusterPolicyCRD(t, name)) {
+				return
+			}
+			t.Fatalf("ClusterPolicy CRD %s did not become Established", name)
 		case <-ticker.C:
 		}
 	}
 }
 
+func clusterPolicySettled(crd *apiextv1.CustomResourceDefinition) bool {
+	return crdConditionTrue(crd, apiextv1.Established) || crdConditionTrue(crd, apiextv1.Terminating)
+}
+
+func (tc *gpuOperatorPrerequisiteTestCtx) readClusterPolicyCRD(t *testing.T, name string) *apiextv1.CustomResourceDefinition {
+	t.Helper()
+
+	crd := &apiextv1.CustomResourceDefinition{}
+	err := tc.Client().Get(t.Context(), types.NamespacedName{Name: name}, crd)
+	require.NoError(t, err, "failed to read ClusterPolicy CRD %s", name)
+	return crd
+}
+
 func crdConditionTrue(crd *apiextv1.CustomResourceDefinition, conditionType apiextv1.CustomResourceDefinitionConditionType) bool {
 	for _, condition := range crd.Status.Conditions {
 		if condition.Type == conditionType && condition.Status == apiextv1.ConditionTrue {
-			return true
-		}
-	}
-	return false
-}
-
-func clusterPolicyServesV1(crd *apiextv1.CustomResourceDefinition) bool {
-	for _, version := range crd.Spec.Versions {
-		if version.Name == gvk.GPUOperatorClusterPolicy.Version && version.Served {
 			return true
 		}
 	}
@@ -161,6 +158,31 @@ func (tc *gpuOperatorPrerequisiteTestCtx) skipUnlessPlatformSingletons(t *testin
 			t.Skipf("skipping GPU Operator prerequisite check: %s %s is not present", target.kind.Kind, target.nn.Name)
 		}
 		require.NoError(t, err, "failed to read %s %s", target.kind.Kind, target.nn.Name)
+	}
+}
+
+// ensureReportedGPUOperatorPrerequisite accepts the condition the operator
+// published after the CRD settled. Met and NotUsable are both valid; this
+// path does not re-derive which one the CRD should produce.
+func (tc *gpuOperatorPrerequisiteTestCtx) ensureReportedGPUOperatorPrerequisite() {
+	expression := `.status.conditions[] | select(.type == "%s") | (.status == "%s" and .reason == "%s") or (.status == "%s" and .reason == "%s" and .severity == "%s")`
+	args := []any{
+		status.ConditionGPUOperatorPrerequisiteAvailable,
+		metav1.ConditionTrue, status.GPUOperatorPrerequisiteMetReason,
+		metav1.ConditionFalse, status.GPUOperatorPrerequisiteNotUsableReason, string(common.ConditionSeverityInfo),
+	}
+
+	for _, target := range []struct {
+		kind schema.GroupVersionKind
+		nn   types.NamespacedName
+	}{
+		{gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName},
+		{gvk.DSCInitialization, tc.DSCInitializationNamespacedName},
+	} {
+		tc.EnsureResourceExists(
+			WithMinimalObject(target.kind, target.nn),
+			WithCondition(jq.Match(expression, args...)),
+		)
 	}
 }
 

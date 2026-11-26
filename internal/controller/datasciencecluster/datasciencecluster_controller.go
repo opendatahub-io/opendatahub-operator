@@ -21,7 +21,6 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -37,6 +36,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	odhresources "github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) error {
@@ -85,7 +85,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
 			)).
 		Watches(
-			&apiextensionsv1.CustomResourceDefinition{},
+			odhresources.GvkToUnstructured(gvk.CustomResourceDefinition),
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
 				return watchDataScienceClusters(ctx, mgr.GetClient())
 			}),
