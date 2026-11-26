@@ -63,15 +63,6 @@ func TestRemoveClusterExtension(t *testing.T) {
 			wantRemaining: []string{"bundle-ext"},
 		},
 		{
-			name:             "ManagedRhoai skips deletion",
-			platform:         cluster.ManagedRhoai,
-			installNamespace: testOperatorNamespace,
-			objects: []client.Object{
-				newClusterExtensionForUninstall("odh-ext", odhOperatorPackage, testOperatorNamespace),
-			},
-			wantRemaining: []string{"odh-ext"},
-		},
-		{
 			name:             "empty platform skips deletion",
 			platform:         "",
 			installNamespace: testOperatorNamespace,

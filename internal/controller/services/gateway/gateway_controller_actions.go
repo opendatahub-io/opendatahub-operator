@@ -646,7 +646,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	// Add dashboard redirect template variables
 	productName := "Open Data Hub"
-	if rr.Release.Name == cluster.ManagedRhoai || rr.Release.Name == cluster.SelfManagedRhoai {
+	if rr.Release.Name == cluster.SelfManagedRhoai {
 		productName = "OpenShift AI"
 	}
 	templateData["DashboardRedirectNamespace"] = cluster.GetApplicationNamespace()

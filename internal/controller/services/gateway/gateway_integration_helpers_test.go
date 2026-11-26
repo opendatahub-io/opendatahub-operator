@@ -2701,7 +2701,7 @@ func RunNginxDashboardRedirectCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(svc.Spec.Selector).To(HaveKeyWithValue("app", gateway.DashboardRedirectName))
 
 	dashboardRouteName := gateway.DashboardRouteNameODH
-	if cluster.GetRelease().Name == cluster.SelfManagedRhoai || cluster.GetRelease().Name == cluster.ManagedRhoai {
+	if cluster.GetRelease().Name == cluster.SelfManagedRhoai {
 		dashboardRouteName = gateway.DashboardRouteNameRHOAI
 	}
 

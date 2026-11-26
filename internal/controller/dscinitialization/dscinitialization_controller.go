@@ -20,7 +20,6 @@ package dscinitialization
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -55,7 +54,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	rp "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -216,17 +214,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			"failed to create operator resources for instance %s: %s", instance.Name, err.Error())
 
 		return reconcile.Result{}, err
-	}
-
-	if platform == cluster.ManagedRhoai {
-		osdConfigsPath := filepath.Join(r.OperatorSettings.ManifestsBasePath, "osd-configs")
-		if err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, instance.Spec.ApplicationsNamespace, "osd", true); err != nil {
-			log.Error(err, "Failed to apply osd specific configs from manifests", "path", osdConfigsPath)
-			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
-				"Failed to apply %s: %v", osdConfigsPath, err)
-
-			return r.provisioningErrorWithGPUPrerequisite(ctx, instance, err)
-		}
 	}
 
 	if platform == cluster.SelfManagedRhoai {

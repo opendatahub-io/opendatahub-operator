@@ -152,7 +152,6 @@ func TestGetOperatorManifests(t *testing.T) {
 	}{
 		{"odh", cluster.OpenDataHub, "/base/ray/openshift"},
 		{"self-managed-rhoai", cluster.SelfManagedRhoai, "/base/ray/openshift"},
-		{"managed-rhoai", cluster.ManagedRhoai, "/base/ray/openshift"},
 		{"xks", cluster.XKS, "/base/ray/default"},
 	}
 

@@ -44,7 +44,6 @@ func TestDefaultLeaderElectionInitHooks(t *testing.T) {
 
 	assert.NotNil(t, hooks.CleanupExistingResource, "CleanupExistingResource hook should not be nil")
 	assert.NotNil(t, hooks.CreateDefaultDSCI, "CreateDefaultDSCI hook should not be nil")
-	assert.NotNil(t, hooks.CreateDefaultDSC, "CreateDefaultDSC hook should not be nil")
 }
 
 // TestValidateLeaderElectionInitHooks tests the hook validation function through RunLeaderElectionInit.
@@ -58,7 +57,6 @@ func TestValidateLeaderElectionInitHooks(t *testing.T) {
 		ManifestsBasePath:         "/test/manifests",
 		MonitoringNamespace:       "test-monitoring",
 		DSCIEnabled:               true,
-		DSCEnabled:                false,
 		CreateDefaultDSCIDisabled: false,
 	}
 
@@ -73,7 +71,6 @@ func TestValidateLeaderElectionInitHooks(t *testing.T) {
 			hooks: bootstrap.LeaderElectionInitHooks{
 				CleanupExistingResource: func(context.Context, client.Client, string) error { return nil },
 				CreateDefaultDSCI:       func(context.Context, client.Client, common.Platform, string) error { return nil },
-				CreateDefaultDSC:        func(context.Context, client.Client) error { return nil },
 			},
 			wantErr: false,
 		},
@@ -82,7 +79,6 @@ func TestValidateLeaderElectionInitHooks(t *testing.T) {
 			hooks: bootstrap.LeaderElectionInitHooks{
 				CleanupExistingResource: nil,
 				CreateDefaultDSCI:       func(context.Context, client.Client, common.Platform, string) error { return nil },
-				CreateDefaultDSC:        func(context.Context, client.Client) error { return nil },
 			},
 			wantErr: true,
 			errMsg:  "LeaderElectionInitHooks.CleanupExistingResource is nil",
@@ -92,20 +88,9 @@ func TestValidateLeaderElectionInitHooks(t *testing.T) {
 			hooks: bootstrap.LeaderElectionInitHooks{
 				CleanupExistingResource: func(context.Context, client.Client, string) error { return nil },
 				CreateDefaultDSCI:       nil,
-				CreateDefaultDSC:        func(context.Context, client.Client) error { return nil },
 			},
 			wantErr: true,
 			errMsg:  "LeaderElectionInitHooks.CreateDefaultDSCI is nil",
-		},
-		{
-			name: "nil CreateDefaultDSC",
-			hooks: bootstrap.LeaderElectionInitHooks{
-				CleanupExistingResource: func(context.Context, client.Client, string) error { return nil },
-				CreateDefaultDSCI:       func(context.Context, client.Client, common.Platform, string) error { return nil },
-				CreateDefaultDSC:        nil,
-			},
-			wantErr: true,
-			errMsg:  "LeaderElectionInitHooks.CreateDefaultDSC is nil",
 		},
 	}
 
@@ -138,11 +123,10 @@ func TestRunLeaderElectionInit(t *testing.T) {
 		{
 			name: "successful initialization with all steps",
 			cfg: bootstrap.LeaderElectionInitConfig{
-				Platform:                  cluster.ManagedRhoai,
+				Platform:                  cluster.SelfManagedRhoai,
 				ManifestsBasePath:         "/test/manifests",
 				MonitoringNamespace:       "test-monitoring",
 				DSCIEnabled:               true,
-				DSCEnabled:                true,
 				CreateDefaultDSCIDisabled: false,
 			},
 			setupMocks: func(t *testing.T, mc *MockClient) bootstrap.LeaderElectionInitHooks {
@@ -153,11 +137,8 @@ func TestRunLeaderElectionInit(t *testing.T) {
 						return nil
 					},
 					CreateDefaultDSCI: func(ctx context.Context, cli client.Client, platform common.Platform, monitoringNS string) error {
-						assert.Equal(t, cluster.ManagedRhoai, platform)
+						assert.Equal(t, cluster.SelfManagedRhoai, platform)
 						assert.Equal(t, "test-monitoring", monitoringNS)
-						return nil
-					},
-					CreateDefaultDSC: func(ctx context.Context, cli client.Client) error {
 						return nil
 					},
 				}
@@ -171,7 +152,6 @@ func TestRunLeaderElectionInit(t *testing.T) {
 				ManifestsBasePath:         "/test/manifests",
 				MonitoringNamespace:       "test-monitoring",
 				DSCIEnabled:               false,
-				DSCEnabled:                true,
 				CreateDefaultDSCIDisabled: false,
 			},
 			setupMocks: func(t *testing.T, mc *MockClient) bootstrap.LeaderElectionInitHooks {
@@ -182,10 +162,6 @@ func TestRunLeaderElectionInit(t *testing.T) {
 					},
 					CreateDefaultDSCI: func(ctx context.Context, cli client.Client, platform common.Platform, monitoringNS string) error {
 						t.Error("CreateDefaultDSCI should not be called when DSCI is disabled")
-						return nil
-					},
-					CreateDefaultDSC: func(ctx context.Context, cli client.Client) error {
-						t.Error("CreateDefaultDSC should not be called for non-ManagedRhoai platform")
 						return nil
 					},
 				}
@@ -199,7 +175,6 @@ func TestRunLeaderElectionInit(t *testing.T) {
 				ManifestsBasePath:         "/different/path",
 				MonitoringNamespace:       "different-monitoring",
 				DSCIEnabled:               true,
-				DSCEnabled:                false,
 				CreateDefaultDSCIDisabled: true,
 			},
 			setupMocks: func(t *testing.T, mc *MockClient) bootstrap.LeaderElectionInitHooks {
@@ -213,10 +188,6 @@ func TestRunLeaderElectionInit(t *testing.T) {
 						t.Error("CreateDefaultDSCI should not be called when auto-creation is disabled")
 						return nil
 					},
-					CreateDefaultDSC: func(ctx context.Context, cli client.Client) error {
-						t.Error("CreateDefaultDSC should not be called when DSC is disabled")
-						return nil
-					},
 				}
 			},
 			expectedError: "",
@@ -224,24 +195,25 @@ func TestRunLeaderElectionInit(t *testing.T) {
 		{
 			name: "cleanup failure continues execution",
 			cfg: bootstrap.LeaderElectionInitConfig{
-				Platform:                  cluster.ManagedRhoai,
+				Platform:                  cluster.OpenDataHub,
 				ManifestsBasePath:         "/test/manifests",
 				MonitoringNamespace:       "test-monitoring",
 				DSCIEnabled:               true,
-				DSCEnabled:                true,
 				CreateDefaultDSCIDisabled: false,
 			},
 			setupMocks: func(t *testing.T, mc *MockClient) bootstrap.LeaderElectionInitHooks {
 				t.Helper()
+				dsciCalled := false
+				t.Cleanup(func() {
+					assert.True(t, dsciCalled, "CreateDefaultDSCI should still be called after cleanup failure")
+				})
 				return bootstrap.LeaderElectionInitHooks{
 					CleanupExistingResource: func(ctx context.Context, cli client.Client, manifestsPath string) error {
 						return errors.New("cleanup failed")
 					},
 					CreateDefaultDSCI: func(ctx context.Context, cli client.Client, platform common.Platform, monitoringNS string) error {
 						// Should still be called even after cleanup failure
-						return nil
-					},
-					CreateDefaultDSC: func(ctx context.Context, cli client.Client) error {
+						dsciCalled = true
 						return nil
 					},
 				}
@@ -251,11 +223,10 @@ func TestRunLeaderElectionInit(t *testing.T) {
 		{
 			name: "DSCI creation failure returns error",
 			cfg: bootstrap.LeaderElectionInitConfig{
-				Platform:                  cluster.ManagedRhoai,
+				Platform:                  cluster.SelfManagedRhoai,
 				ManifestsBasePath:         "/test/manifests",
 				MonitoringNamespace:       "test-monitoring",
 				DSCIEnabled:               true,
-				DSCEnabled:                true,
 				CreateDefaultDSCIDisabled: false,
 			},
 			setupMocks: func(t *testing.T, mc *MockClient) bootstrap.LeaderElectionInitHooks {
@@ -267,75 +238,17 @@ func TestRunLeaderElectionInit(t *testing.T) {
 					CreateDefaultDSCI: func(ctx context.Context, cli client.Client, platform common.Platform, monitoringNS string) error {
 						return errors.New("DSCI creation failed")
 					},
-					CreateDefaultDSC: func(ctx context.Context, cli client.Client) error {
-						t.Error("CreateDefaultDSC should not be called if DSCI creation fails")
-						return nil
-					},
 				}
 			},
 			expectedError: "create default DSCI: DSCI creation failed",
 		},
 		{
-			name: "DSC creation failure returns error",
-			cfg: bootstrap.LeaderElectionInitConfig{
-				Platform:                  cluster.ManagedRhoai,
-				ManifestsBasePath:         "/test/manifests",
-				MonitoringNamespace:       "test-monitoring",
-				DSCIEnabled:               true,
-				DSCEnabled:                true,
-				CreateDefaultDSCIDisabled: false,
-			},
-			setupMocks: func(t *testing.T, mc *MockClient) bootstrap.LeaderElectionInitHooks {
-				t.Helper()
-				return bootstrap.LeaderElectionInitHooks{
-					CleanupExistingResource: func(ctx context.Context, cli client.Client, manifestsPath string) error {
-						return nil
-					},
-					CreateDefaultDSCI: func(ctx context.Context, cli client.Client, platform common.Platform, monitoringNS string) error {
-						return nil
-					},
-					CreateDefaultDSC: func(ctx context.Context, cli client.Client) error {
-						return errors.New("DSC creation failed")
-					},
-				}
-			},
-			expectedError: "create default DSC: DSC creation failed",
-		},
-		{
-			name: "DSC disabled for ManagedRhoai",
-			cfg: bootstrap.LeaderElectionInitConfig{
-				Platform:                  cluster.ManagedRhoai,
-				ManifestsBasePath:         "/test/manifests",
-				MonitoringNamespace:       "test-monitoring",
-				DSCIEnabled:               true,
-				DSCEnabled:                false,
-				CreateDefaultDSCIDisabled: false,
-			},
-			setupMocks: func(t *testing.T, mc *MockClient) bootstrap.LeaderElectionInitHooks {
-				t.Helper()
-				return bootstrap.LeaderElectionInitHooks{
-					CleanupExistingResource: func(ctx context.Context, cli client.Client, manifestsPath string) error {
-						return nil
-					},
-					CreateDefaultDSCI: func(ctx context.Context, cli client.Client, platform common.Platform, monitoringNS string) error {
-						return nil
-					},
-					CreateDefaultDSC: func(ctx context.Context, cli client.Client) error {
-						t.Error("CreateDefaultDSC should not be called when DSC is disabled")
-						return nil
-					},
-				}
-			},
-			expectedError: "",
-		},
-		{
 			name: "invalid hooks returns error",
 			cfg: bootstrap.LeaderElectionInitConfig{
-				Platform:                  cluster.ManagedRhoai,
+				Platform:                  cluster.OpenDataHub,
 				ManifestsBasePath:         "/test/manifests",
 				MonitoringNamespace:       "test-monitoring",
 				DSCIEnabled:               true,
-				DSCEnabled:                true,
 				CreateDefaultDSCIDisabled: false,
 			},
 			setupMocks: func(t *testing.T, mc *MockClient) bootstrap.LeaderElectionInitHooks {
@@ -345,7 +258,6 @@ func TestRunLeaderElectionInit(t *testing.T) {
 					CreateDefaultDSCI: func(ctx context.Context, cli client.Client, platform common.Platform, monitoringNS string) error {
 						return nil
 					},
-					CreateDefaultDSC: func(ctx context.Context, cli client.Client) error { return nil },
 				}
 			},
 			expectedError: "LeaderElectionInitHooks.CleanupExistingResource is nil",
@@ -376,11 +288,10 @@ func TestRunLeaderElectionInitSequencing(t *testing.T) {
 	var executionOrder []string
 
 	cfg := bootstrap.LeaderElectionInitConfig{
-		Platform:                  cluster.ManagedRhoai,
+		Platform:                  cluster.SelfManagedRhoai,
 		ManifestsBasePath:         "/test/manifests",
 		MonitoringNamespace:       "test-monitoring",
 		DSCIEnabled:               true,
-		DSCEnabled:                true,
 		CreateDefaultDSCIDisabled: false,
 	}
 
@@ -393,17 +304,13 @@ func TestRunLeaderElectionInitSequencing(t *testing.T) {
 			executionOrder = append(executionOrder, "dsci")
 			return nil
 		},
-		CreateDefaultDSC: func(ctx context.Context, cli client.Client) error {
-			executionOrder = append(executionOrder, "dsc")
-			return nil
-		},
 	}
 
 	err := bootstrap.RunLeaderElectionInit(ctx, log, mockClient, cfg, hooks)
 	require.NoError(t, err)
 
-	// Verify the execution order: cleanup → DSCI → DSC
-	expectedOrder := []string{"cleanup", "dsci", "dsc"}
+	// Verify the execution order: cleanup → DSCI
+	expectedOrder := []string{"cleanup", "dsci"}
 	assert.Equal(t, expectedOrder, executionOrder, "Operations should execute in the correct sequence")
 }
 
@@ -419,7 +326,6 @@ func TestLeaderElectionInitConfigValidation(t *testing.T) {
 		ManifestsBasePath:         "",
 		MonitoringNamespace:       "monitoring",
 		DSCIEnabled:               true,
-		DSCEnabled:                false,
 		CreateDefaultDSCIDisabled: false,
 	}
 
@@ -431,10 +337,6 @@ func TestLeaderElectionInitConfigValidation(t *testing.T) {
 		CreateDefaultDSCI: func(ctx context.Context, cli client.Client, platform common.Platform, monitoringNS string) error {
 			assert.Equal(t, cluster.OpenDataHub, platform)
 			assert.Equal(t, "monitoring", monitoringNS)
-			return nil
-		},
-		CreateDefaultDSC: func(ctx context.Context, cli client.Client) error {
-			t.Error("CreateDefaultDSC should not be called for OpenDataHub platform")
 			return nil
 		},
 	}

@@ -200,11 +200,8 @@ func resolveNotebooksNamespace(dscCtx *modules.DSCContext, cfg *modules.ModuleCR
 	if ns := dscCtx.DSC.Spec.Components.Workbenches.WorkbenchNamespace; ns != "" {
 		return ns
 	}
-	if cfg != nil {
-		switch cfg.Release.Name {
-		case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
-			return cluster.DefaultNotebooksNamespaceRHOAI
-		}
+	if cfg != nil && cfg.Release.Name == cluster.SelfManagedRhoai {
+		return cluster.DefaultNotebooksNamespaceRHOAI
 	}
 	return cluster.DefaultNotebooksNamespaceODH
 }

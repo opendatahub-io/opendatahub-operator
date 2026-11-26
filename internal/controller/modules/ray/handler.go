@@ -36,7 +36,6 @@ var (
 	sourcePathByPlatform = map[common.Platform]string{
 		cluster.OpenDataHub:      "openshift",
 		cluster.SelfManagedRhoai: "openshift",
-		cluster.ManagedRhoai:     "openshift",
 		cluster.XKS:              moduleSourcePath,
 	}
 

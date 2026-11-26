@@ -336,8 +336,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectHTTP(t *testing.T) {
 	platformRelease := tc.FetchPlatformRelease()
 	dashboardRouteName := getDashboardRouteNameByPlatform(platformRelease)
 	productName := "Open Data Hub"
-	switch platformRelease {
-	case cluster.ManagedRhoai, cluster.SelfManagedRhoai:
+	if platformRelease == cluster.SelfManagedRhoai {
 		productName = "OpenShift AI"
 	}
 	appNamespace := tc.AppsNamespace

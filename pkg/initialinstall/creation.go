@@ -2,7 +2,6 @@ package initialinstall
 
 import (
 	"context"
-	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,108 +9,10 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
-
-// CreateDefaultDSC creates a default instance of DSC.
-// Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
-func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
-	// Build the default DSC; CreateWithRetry only creates it when one does not already exist.
-	releaseDataScienceCluster := buildDefaultDSC()
-	err := cluster.CreateWithRetry(ctx, cli, releaseDataScienceCluster) // 1 min timeout
-	if err != nil {
-		return fmt.Errorf("failed to create DataScienceCluster custom resource: %w", err)
-	}
-	return nil
-}
-
-// buildDefaultDSC returns the default DataScienceCluster CR created on a fresh install.
-func buildDefaultDSC() *dscApi.DataScienceCluster {
-	return &dscApi.DataScienceCluster{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       gvk.DataScienceCluster.Kind,
-			APIVersion: gvk.DataScienceCluster.GroupVersion().String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "default-dsc",
-		},
-		Spec: dscApi.DataScienceClusterSpec{
-			Components: dscApi.Components{
-				Dashboard: componentApi.DSCDashboard{
-					DashboardCommonSpec: componentApi.DashboardCommonSpec{
-						Standard: componentApi.DashboardStandardSpec{
-							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-						},
-					},
-				},
-				Workbenches: componentApi.DSCWorkbenches{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-					WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
-						WorkbenchesV2: componentApi.WorkbenchesV2Spec{
-							ManagementState: operatorv1.Removed,
-						},
-					},
-				},
-				AIPipelines: componentApi.DSCDataSciencePipelines{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				Kserve: componentApi.DSCKserve{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-					KserveCommonSpec: componentApi.KserveCommonSpec{
-						NIM: componentApi.NimSpec{
-							ManagementState: operatorv1.Managed,
-						},
-					},
-				},
-				Ray: componentApi.DSCRay{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				Kueue: componentApi.DSCKueue{
-					KueueManagementSpec: componentApi.KueueManagementSpec{ManagementState: operatorv1.Removed},
-				},
-				TrustyAI: componentApi.DSCTrustyAI{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				AIHub: componentApi.DSCAIHub{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				Data: componentApi.DSCData{
-					FeatureStore: componentApi.DSCFeatureStore{
-						ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-					},
-				},
-				OGX: componentApi.DSCOGX{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				MLflowOperator: componentApi.DSCMLflowOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				Trainer: componentApi.DSCTrainer{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				SparkOperator: componentApi.DSCSparkOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
-				},
-				AIGateway: componentApi.DSCAIGateway{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
-					AIGatewayCommonSpec: componentApi.AIGatewayCommonSpec{
-						BatchGateway: componentApi.AIGatewayBatchGatewaySpec{
-							ManagementState: operatorv1.Removed,
-						},
-					},
-				},
-				MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-			},
-		},
-	}
-}
 
 // CreateDefaultDSCI creates a default instance of DSCI
 // If there exists default-dsci instance already, it will not update DSCISpec on it.

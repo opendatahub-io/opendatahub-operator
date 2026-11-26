@@ -8,7 +8,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -16,31 +15,20 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestCreateAppNamespaceAddsClusterMonitoringLabelForRhoaiPlatforms(t *testing.T) {
+func TestCreateAppNamespaceAddsClusterMonitoringLabelForSelfManagedRhoai(t *testing.T) {
 	t.Parallel()
 
-	for _, platform := range []struct {
-		name  string
-		value common.Platform
-	}{
-		{name: "managed RHOAI", value: cluster.ManagedRhoai},
-		{name: "self-managed RHOAI", value: cluster.SelfManagedRhoai},
-	} {
-		t.Run(platform.name, func(t *testing.T) {
-			t.Parallel()
-			g := NewWithT(t)
+	g := NewWithT(t)
 
-			cli, err := fakeclient.New()
-			g.Expect(err).NotTo(HaveOccurred())
-			reconciler := &DSCInitializationReconciler{Client: cli}
+	cli, err := fakeclient.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	reconciler := &DSCInitializationReconciler{Client: cli}
 
-			g.Expect(reconciler.createAppNamespace(t.Context(), "redhat-ods-applications", platform.value)).To(Succeed())
+	g.Expect(reconciler.createAppNamespace(t.Context(), "redhat-ods-applications", cluster.SelfManagedRhoai)).To(Succeed())
 
-			namespace := &corev1.Namespace{}
-			g.Expect(cli.Get(t.Context(), client.ObjectKey{Name: "redhat-ods-applications"}, namespace)).To(Succeed())
-			g.Expect(namespace.Labels[labels.ClusterMonitoring]).To(Equal(labels.True))
-		})
-	}
+	namespace := &corev1.Namespace{}
+	g.Expect(cli.Get(t.Context(), client.ObjectKey{Name: "redhat-ods-applications"}, namespace)).To(Succeed())
+	g.Expect(namespace.Labels[labels.ClusterMonitoring]).To(Equal(labels.True))
 }
 
 func TestCreateAppNamespaceReconcilesClusterMonitoringLabel(t *testing.T) {

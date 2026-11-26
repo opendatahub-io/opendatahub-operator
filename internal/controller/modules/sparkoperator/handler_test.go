@@ -150,7 +150,6 @@ func TestGetOperatorManifests(t *testing.T) {
 	}{
 		{"odh", cluster.OpenDataHub, "/base/sparkoperator/default"},
 		{"self-managed-rhoai", cluster.SelfManagedRhoai, "/base/sparkoperator/default"},
-		{"managed-rhoai", cluster.ManagedRhoai, "/base/sparkoperator/default"},
 		{"xks", cluster.XKS, "/base/sparkoperator/default"},
 	}
 

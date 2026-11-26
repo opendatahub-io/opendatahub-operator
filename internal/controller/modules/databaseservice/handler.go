@@ -65,7 +65,7 @@ func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) module
 	}
 
 	switch platform.Release.Name {
-	case cluster.OpenDataHub, cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+	case cluster.OpenDataHub, cluster.SelfManagedRhoai:
 	default:
 		return result
 	}
