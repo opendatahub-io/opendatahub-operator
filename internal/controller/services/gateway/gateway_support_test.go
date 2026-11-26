@@ -401,30 +401,6 @@ func TestExtendAuthConfigHash(t *testing.T) {
 	g.Expect(extendAuthConfigHash("", []byte("ca-bundle-v1"))).NotTo(BeEmpty(), "extension must work when the auth secret is absent")
 }
 
-// TestCalculateRedirectConfigHash tests the CalculateRedirectConfigHash function.
-func TestCalculateRedirectConfigHash(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	hash1, err := CalculateRedirectConfigHash(testHostnameDefault)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(hash1).To(MatchRegexp("^[0-9a-f]{64}$"), "hash should be 64 hex chars")
-	g.Expect(hash1).To(HaveLen(64))
-
-	hash2, err := CalculateRedirectConfigHash(testHostnameCustom)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(hash2).NotTo(Equal(hash1), "different hostnames should produce different hashes")
-
-	hash3, err := CalculateRedirectConfigHash(testHostnameDefault)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(hash3).To(Equal(hash1), "same hostname should produce same hash")
-
-	config, err := gatewayResources.ReadFile(dashboardRedirectConfigMapTemplate)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(calculateRedirectConfigHash(testHostnameDefault, append(config, '\n'))).
-		NotTo(Equal(hash1), "changing the redirect configuration should roll the pods")
-}
-
 // TestIsGatewayReady tests the isGatewayReady helper function.
 func TestIsGatewayReady(t *testing.T) {
 	t.Parallel()

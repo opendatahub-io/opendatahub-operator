@@ -29,6 +29,13 @@ type authProxyResult struct {
 	Condition common.Condition
 }
 
+const (
+	legacyDashboardRedirectName       = "dashboard-redirect"
+	legacyDashboardRedirectConfigName = "dashboard-redirect-config"
+	legacyODHDashboardRouteName       = "odh-dashboard"
+	legacyRHOAIDashboardRouteName     = "rhods-dashboard"
+)
+
 func (r authProxyResult) failedPreparation() bool {
 	return r.Condition.Status == metav1.ConditionFalse &&
 		r.Condition.Reason == additionalIngressReasonAuthenticationUnavailable
@@ -50,6 +57,13 @@ func gatewayAuthState(rr *odhtypes.ReconciliationRequest) map[string]authProxyRe
 // Preserve the existing ingress stack when authentication preparation failed this pass.
 // Match kind and name so unrelated resources and removed targets still use normal GC.
 func gatewayAuthResourceCollectable(rr *odhtypes.ReconciliationRequest, resource unstructured.Unstructured) (bool, error) {
+	// Keep the Gateway-owned redirect resources alive during the ownership handoff.
+	// The dashboard-operator adopts these names after it rolls out.
+	// TODO(RHOAIENG-104135): Remove this compatibility exception after the RHOAI 3.7 migration release.
+	if isLegacyDashboardRedirectResource(resource) {
+		return false, nil
+	}
+
 	for _, result := range gatewayAuthState(rr) {
 		if !result.failedPreparation() {
 			continue
@@ -59,6 +73,25 @@ func gatewayAuthResourceCollectable(rr *odhtypes.ReconciliationRequest, resource
 		}
 	}
 	return gc.DefaultObjectPredicate(rr, resource)
+}
+
+func isLegacyDashboardRedirectResource(resource unstructured.Unstructured) bool {
+	if resource.GetNamespace() != cluster.GetApplicationNamespace() {
+		return false
+	}
+
+	switch resource.GroupVersionKind() {
+	case gvk.Deployment, gvk.Service:
+		return resource.GetName() == legacyDashboardRedirectName
+	case gvk.ConfigMap:
+		return resource.GetName() == legacyDashboardRedirectConfigName
+	case gvk.Route:
+		return resource.GetName() == legacyODHDashboardRouteName ||
+			resource.GetName() == legacyRHOAIDashboardRouteName ||
+			resource.GetName() == LegacyGatewaySubdomain
+	default:
+		return false
+	}
 }
 
 type authProxyTarget struct {

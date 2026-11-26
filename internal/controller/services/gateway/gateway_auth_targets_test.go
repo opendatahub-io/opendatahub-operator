@@ -444,6 +444,53 @@ func TestAuthenticationCleanupProtectsOnlyFailedTargets(t *testing.T) {
 	}
 }
 
+func TestAuthenticationCleanupPreservesLegacyDashboardRedirectsDuringOwnershipHandoff(t *testing.T) {
+	g := NewWithT(t)
+	rr := &odhtypes.ReconciliationRequest{Instance: &serviceApi.GatewayConfig{}}
+
+	for kind, names := range map[schema.GroupVersionKind][]string{
+		gvk.Deployment: {"dashboard-redirect"},
+		gvk.Service:    {"dashboard-redirect"},
+		gvk.ConfigMap:  {"dashboard-redirect-config"},
+		gvk.Route:      {"odh-dashboard", "rhods-dashboard", LegacyGatewaySubdomain},
+	} {
+		for _, name := range names {
+			obj := unstructured.Unstructured{}
+			obj.SetGroupVersionKind(kind)
+			obj.SetName(name)
+			obj.SetNamespace(cluster.GetApplicationNamespace())
+			obj.SetAnnotations(map[string]string{"platform.opendatahub.io/instance.generation": "old"})
+			g.Expect(gatewayAuthResourceCollectable(rr, obj)).To(BeFalse(), "%s %s must survive the ownership handoff", kind.Kind, name)
+		}
+	}
+
+	gatewayRoute := unstructured.Unstructured{}
+	gatewayRoute.SetGroupVersionKind(gvk.Route)
+	gatewayRoute.SetName(LegacyGatewaySubdomain)
+	gatewayRoute.SetNamespace(GetGatewayNamespace())
+	gatewayRoute.SetAnnotations(map[string]string{"platform.opendatahub.io/instance.generation": "old"})
+	g.Expect(gatewayAuthResourceCollectable(rr, gatewayRoute)).To(BeTrue(), "the Gateway Route must use normal garbage collection")
+
+	otherNamespaceDeployment := unstructured.Unstructured{}
+	otherNamespaceDeployment.SetGroupVersionKind(gvk.Deployment)
+	otherNamespaceDeployment.SetName(legacyDashboardRedirectName)
+	otherNamespaceDeployment.SetNamespace("other-namespace")
+	otherNamespaceDeployment.SetAnnotations(map[string]string{"platform.opendatahub.io/instance.generation": "old"})
+	g.Expect(gatewayAuthResourceCollectable(rr, otherNamespaceDeployment)).To(BeTrue(), "same-named resources outside the applications namespace must use normal garbage collection")
+
+	for kind, name := range map[schema.GroupVersionKind]string{
+		gvk.NetworkPolicy: "dashboard-redirect",
+		gvk.Deployment:    "unrelated",
+		gvk.Route:         "unrelated",
+	} {
+		obj := unstructured.Unstructured{}
+		obj.SetGroupVersionKind(kind)
+		obj.SetName(name)
+		obj.SetAnnotations(map[string]string{"platform.opendatahub.io/instance.generation": "old"})
+		g.Expect(gatewayAuthResourceCollectable(rr, obj)).To(BeTrue(), "%s %s must use normal garbage collection", kind.Kind, name)
+	}
+}
+
 func TestPreparedAuthSecretSurvivesDeploymentUntilIngressRemoval(t *testing.T) {
 	g := NewWithT(t)
 	original := cluster.GetClusterInfo()
