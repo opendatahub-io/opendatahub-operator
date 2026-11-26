@@ -150,6 +150,63 @@ func TestDataScienceClusterV2_ValidatingWebhook(t *testing.T) {
 	}
 }
 
+func TestDataScienceClusterV2_DCHNamespaceUpdate(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, previous, current string
+		allowed                 bool
+	}{
+		{"unchanged", `{"managementState":"Managed","namespace":"ns-a"}`, `{"managementState":"Managed","namespace":"ns-a"}`, true},
+		{"managed relocation", `{"managementState":"Managed","namespace":"ns-a"}`, `{"managementState":"Managed","namespace":"ns-b"}`, false},
+		{"managed namespace cleared", `{"managementState":"Managed","namespace":"ns-a"}`, `{"managementState":"Managed","namespace":""}`, false},
+		{"managed namespace omitted", `{"managementState":"Managed","namespace":"ns-a"}`, `{"managementState":"Managed"}`, false},
+		{
+			name:     "default namespace omitted",
+			previous: `{"managementState":"Managed","namespace":"` + componentApi.DefaultDataConnectHubNamespace + `"}`,
+			current:  `{"managementState":"Managed"}`,
+			allowed:  true,
+		},
+		{
+			name:     "default namespace cleared",
+			previous: `{"managementState":"Managed","namespace":"` + componentApi.DefaultDataConnectHubNamespace + `"}`,
+			current:  `{"managementState":"Managed","namespace":""}`,
+			allowed:  true,
+		},
+		{"disable", `{"managementState":"Managed","namespace":"ns-a"}`, `{"managementState":"Removed","namespace":"ns-b"}`, true},
+		{"removed relocation", `{"managementState":"Removed","namespace":"ns-a"}`, `{"managementState":"Removed","namespace":"ns-b"}`, true},
+		{"enable", `{"managementState":"Removed","namespace":"ns-a"}`, `{"managementState":"Managed","namespace":"ns-b"}`, true},
+		{"legacy empty namespace", `{"managementState":"Managed"}`, `{"managementState":"Managed","namespace":"ns-b"}`, true},
+		{"first enable", "", `{"managementState":"Managed","namespace":"ns-b"}`, true},
+		{"no DCH", "", "", true},
+		{"invalid new marker", `{"managementState":"Managed","namespace":"ns-a"}`, `{"managementState":"Managed","namespace":"INVALID"}`, false},
+		{"invalid old marker", `broken`, `{"managementState":"Managed","namespace":"ns-a"}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			sch, err := scheme.New()
+			g.Expect(err).NotTo(HaveOccurred())
+			cli, err := fakeclient.New(fakeclient.WithScheme(sch))
+			g.Expect(err).NotTo(HaveOccurred())
+			validator := &v2webhook.Validator{Client: cli, Name: "test-v2", Decoder: admission.NewDecoder(sch)}
+			old := envtestutil.NewDSCV2("dch-namespace-update")
+			if tc.previous != "" {
+				old.Annotations = map[string]string{dscv2.DataConnectHubV3StateAnnotation: tc.previous}
+			}
+			current := envtestutil.NewDSCV2(old.Name)
+			if tc.current != "" {
+				current.Annotations = map[string]string{dscv2.DataConnectHubV3StateAnnotation: tc.current}
+			}
+			gvr := metav1.GroupVersionResource{Group: gvk.DataScienceClusterV2.Group, Version: "v2", Resource: "datascienceclusters"}
+			req := envtestutil.NewAdmissionRequest(t, admissionv1.Update, current, gvk.DataScienceClusterV2, gvr)
+			req.OldObject.Raw, err = json.Marshal(old)
+			g.Expect(err).NotTo(HaveOccurred())
+			resp := validator.Handle(t.Context(), req)
+			g.Expect(resp.Allowed).To(Equal(tc.allowed), "response: %+v", resp.Result)
+		})
+	}
+}
+
 func TestDataScienceClusterV2_WVADeprecationWarning(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()

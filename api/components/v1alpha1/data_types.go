@@ -48,17 +48,15 @@ type DataConnectHubGateway struct {
 	Namespace string `json:"namespace"`
 }
 
+// CEL escapes the reserved field name namespace as __namespace__.
+// +kubebuilder:validation:XValidation:rule="!has(self.managementState) || self.managementState != 'Managed' || !has(oldSelf.managementState) || oldSelf.managementState != 'Managed' || !has(oldSelf.__namespace__) || oldSelf.__namespace__ == '' || (has(self.__namespace__) && self.__namespace__ == oldSelf.__namespace__)",message="DCH namespace is immutable while Managed; set Removed before changing it"
+//nolint:lll
+
 // DSCDataConnectHub configures DCH within the shared Data module.
 type DSCDataConnectHub struct {
 	common.ManagementSpec `json:",inline"`
 
-	// Namespace contains the DCH services, not the module/controller.
-	// Defaults to odh-dch-infra on ODH and
-	// redhat-dch-infra on RHOAI when Managed.
-	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
-	// +kubebuilder:validation:MaxLength=63
-	// +optional
-	Namespace string `json:"namespace,omitempty"`
+	DataConnectHubCommonSpec `json:",inline"`
 
 	// Gateway overrides the platform-discovered Gateway.
 	// +optional

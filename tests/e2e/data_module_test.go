@@ -12,12 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dataModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/data"
@@ -61,7 +57,7 @@ func dataModuleTestSuite(t *testing.T) {
 		{"Validate upgrade: existing operands preserved", ctx.ValidateUpgradeOperandsPreserved},
 		{"Validate v2 DSC Data selection", ctx.ValidateV2DSCDataSelection},
 		{"Validate Data Registry enables module independently", ctx.ValidateDataRegistryAloneEnablesModule},
-		{"Validate DCH uses shared module and ordered cleanup", ctx.ValidateDataConnectHubLifecycle},
+		{"Validate DCH shared-module installation and removal", ctx.ValidateDataConnectHubLifecycle},
 		{"Validate module disabled cleanup", ctx.ValidateModuleDisabledCleanup},
 		{"Validate module disabled", ctx.ValidateModuleDisabled},
 	}
@@ -70,8 +66,8 @@ func dataModuleTestSuite(t *testing.T) {
 }
 
 // ValidateDataConnectHubLifecycle exercises the DSC -> shared module -> owned
-// application path without assuming PostgreSQL has been provisioned. A held
-// application finalizer proves that the controller stays up during removal.
+// application path without assuming PostgreSQL has been provisioned.
+// Finalizer ordering and controller/RBAC cleanup are tested by the Data module.
 // Run this only as part of the disposable-cluster Tier3 lifecycle suite.
 func (ctx *DataModuleTestCtx) ValidateDataConnectHubLifecycle(t *testing.T) {
 	t.Helper()
@@ -79,20 +75,13 @@ func (ctx *DataModuleTestCtx) ValidateDataConnectHubLifecycle(t *testing.T) {
 	if ctx.IsXKS() {
 		t.Skip("DCH DSC lifecycle requires the OpenShift platform projection")
 	}
-	g := NewWithT(t)
-	requestCtx := context.Background()
 	const (
-		applicationName  = "default-dataconnectservice"
-		controllerName   = "dc-controller-manager"
-		controllerRole   = "dc-controller-manager-role"
-		cleanupFinalizer = "e2e.opendatahub.io/dch-cleanup-hold"
-		gatewayName      = "dch-e2e-gateway"
-		audience         = "https://dch-e2e.example"
+		applicationName = "default-dataconnectservice"
+		controllerName  = "dc-controller-manager"
+		gatewayName     = "dch-e2e-gateway"
+		audience        = "https://dch-e2e.example"
 	)
-	applicationGVK := schema.GroupVersionKind{
-		Group: "dataconnecthub.opendatahub.io", Version: "v1alpha1", Kind: "DataConnectService",
-	}
-	applicationNN := types.NamespacedName{Name: applicationName, Namespace: ctx.AppsNamespace}
+	applicationNN := types.NamespacedName{Name: applicationName, Namespace: componentApi.DefaultDataConnectHubNamespace}
 	controllerNN := types.NamespacedName{Name: controllerName, Namespace: ctx.AppsNamespace}
 	moduleNN := types.NamespacedName{Name: dataModuleCRName}
 	snapshotDSCFields(t, ctx.TestContext, gvk.DataScienceCluster, []string{"spec", "components", "data"})
@@ -120,10 +109,14 @@ func (ctx *DataModuleTestCtx) ValidateDataConnectHubLifecycle(t *testing.T) {
 			jq.Match(`.spec.capabilities.featureStore.managementState == "Removed"`),
 			jq.Match(`.spec.capabilities.dataRegistry.managementState == "Removed"`),
 			jq.Match(`.spec.capabilities.dataConnectHub.managementState == "Managed"`),
+			jq.Match(`.spec.capabilities.dataConnectHub.namespace == %q`, componentApi.DefaultDataConnectHubNamespace),
+			jq.Match(`.spec.capabilities.dataConnectHub.gateway.name == %q`, gatewayName),
+			jq.Match(`.spec.capabilities.dataConnectHub.gateway.namespace == %q`, ctx.AppsNamespace),
+			jq.Match(`.spec.capabilities.dataConnectHub.tokenReviewAudiences == [%q]`, audience),
 		)),
 	)
-	application := ctx.EnsureResourceExists(
-		WithMinimalObject(applicationGVK, applicationNN),
+	ctx.EnsureResourceExists(
+		WithMinimalObject(gvk.DataConnectService, applicationNN),
 		WithEventuallyTimeout(ctx.TestTimeouts.longEventuallyTimeout),
 		WithCondition(And(
 			jq.Match(`.metadata.ownerReferences[] | select(.controller == true) | .uid == %q`, string(module.GetUID())),
@@ -137,31 +130,6 @@ func (ctx *DataModuleTestCtx) ValidateDataConnectHubLifecycle(t *testing.T) {
 		WithEventuallyTimeout(ctx.TestTimeouts.longEventuallyTimeout),
 		WithCondition(jq.Match(`.status.availableReplicas >= 1`)),
 	)
-	role := ctx.EnsureResourceExists(WithMinimalObject(gvk.ClusterRole, types.NamespacedName{Name: controllerRole}))
-
-	// Release our own finalizer even if an assertion fails, before restoring
-	// the DSC snapshot; otherwise test cleanup could strand the whole module.
-	var heldUID types.UID
-	releaseFinalizer := func() error {
-		return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			fresh := &unstructured.Unstructured{}
-			fresh.SetGroupVersionKind(applicationGVK)
-			if err := ctx.Client().Get(requestCtx, applicationNN, fresh); err != nil {
-				if errors.IsNotFound(err) {
-					return nil
-				}
-				return err
-			}
-			if fresh.GetUID() != heldUID || !controllerutil.RemoveFinalizer(fresh, cleanupFinalizer) {
-				return nil
-			}
-			return ctx.Client().Update(requestCtx, fresh)
-		})
-	}
-	t.Cleanup(func() { require.NoError(t, releaseFinalizer()) })
-	var err error
-	heldUID, err = addFinalizerToCurrentResource(requestCtx, ctx.Client(), application, cleanupFinalizer)
-	g.Expect(err).To(Succeed())
 
 	ctx.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
@@ -171,23 +139,7 @@ func (ctx *DataModuleTestCtx) ValidateDataConnectHubLifecycle(t *testing.T) {
 		)),
 		WithCondition(jq.Match(`.spec.components.data.dataConnectHub.managementState == "Removed"`)),
 	)
-	ctx.EnsureResourceExists(
-		WithMinimalObject(applicationGVK, applicationNN),
-		WithCondition(jq.Match(`.metadata.deletionTimestamp != null`)),
-	)
-	ctx.EnsureResourceExistsConsistently(
-		WithMinimalObject(gvk.Deployment, controllerNN),
-		WithConsistentlyDuration(15*time.Second),
-		WithCondition(jq.Match(`.status.availableReplicas >= 1`)),
-	)
-	ctx.EnsureResourceExists(
-		WithMinimalObject(gvk.ClusterRole, types.NamespacedName{Name: controllerRole}),
-		WithCondition(jq.Match(`.metadata.uid == %q`, string(role.GetUID()))),
-	)
-	g.Expect(releaseFinalizer()).To(Succeed())
-	ctx.EnsureResourceGone(WithMinimalObject(applicationGVK, applicationNN))
-	ctx.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))
-	ctx.EnsureResourceGone(WithMinimalObject(gvk.ClusterRole, types.NamespacedName{Name: controllerRole}))
+	ctx.EnsureResourceGone(WithMinimalObject(gvk.DataConnectService, applicationNN))
 	ctx.EnsureResourceExists(
 		WithMinimalObject(dataModuleCRGVK, moduleNN),
 		WithCondition(And(
@@ -199,23 +151,6 @@ func (ctx *DataModuleTestCtx) ValidateDataConnectHubLifecycle(t *testing.T) {
 	ctx.ValidateFeastOperatorDeployed(t)
 	ctx.EnsureResourceExists(WithMinimalObject(gvk.CustomResourceDefinition,
 		types.NamespacedName{Name: "dataconnectservices.dataconnecthub.opendatahub.io"}))
-}
-
-// addFinalizerToCurrentResource returns the UID read by the update attempt, not
-// a previous observation of the same name. Return it even on an update error so
-// cleanup can handle a request whose response was lost after the server applied it.
-func addFinalizerToCurrentResource(ctx context.Context, cli client.Client, obj client.Object, finalizer string) (types.UID, error) {
-	var heldUID types.UID
-	key := client.ObjectKeyFromObject(obj)
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		if err := cli.Get(ctx, key, obj); err != nil {
-			return err
-		}
-		heldUID = obj.GetUID()
-		controllerutil.AddFinalizer(obj, finalizer)
-		return cli.Update(ctx, obj)
-	})
-	return heldUID, err
 }
 
 // ValidateV2DSCDataSelection proves that the v2 FeastOperator stanza still

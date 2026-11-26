@@ -1,4 +1,4 @@
-//go:build !rhoai
+//go:build rhoai
 
 /*
 Copyright 2026.
@@ -19,4 +19,16 @@ limitations under the License.
 package v1alpha1
 
 // DefaultDataConnectHubNamespace contains shared DCH application infrastructure.
-const DefaultDataConnectHubNamespace = "odh-dch-infra"
+const DefaultDataConnectHubNamespace = "redhat-dch-infra"
+
+// DataConnectHubCommonSpec defines the public DCH namespace configuration.
+type DataConnectHubCommonSpec struct {
+	// Namespace contains the DCH services, not the module/controller.
+	// Defaults to "redhat-dch-infra" when omitted, or when empty and Managed.
+	// A non-empty namespace cannot change while DCH remains Managed;
+	// set Removed before changing it.
+	// +kubebuilder:default="redhat-dch-infra"
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
+	Namespace string `json:"namespace,omitempty"`
+}

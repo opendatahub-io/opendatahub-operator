@@ -7,7 +7,6 @@ package v3
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -82,12 +81,6 @@ func (d *Defaulter) Default(ctx context.Context, obj runtime.Object) error {
 		if err := json.Unmarshal(request.OldObject.Raw, old); err != nil {
 			return fmt.Errorf("decode old DSC for MaaS compatibility: %w", err)
 		}
-		previous := old.Spec.Components.Data.DataConnectHub
-		current := dsc.Spec.Components.Data.DataConnectHub
-		if previous.ManagementState == operatorv1.Managed && current.ManagementState == operatorv1.Managed &&
-			previous.Namespace != "" && previous.Namespace != current.Namespace {
-			return errors.New("data connect hub namespace is immutable while Managed; set Removed before changing it")
-		}
 	}
 
 	if err := dsc.AdmitMaaSV2State(old); err != nil {
@@ -105,11 +98,12 @@ func (d *Defaulter) Default(ctx context.Context, obj runtime.Object) error {
 //   - dsc: The DataScienceCluster object to mutate.
 func (d *Defaulter) applyDefaults(ctx context.Context, dsc *dscApi.DataScienceCluster) {
 	log := logf.FromContext(ctx)
-	// If AI Hub is enabled and InstancesNamespace is empty, set it to the default value.
+	// If DCH is enabled and Namespace is empty, set it to the default value.
 	dch := &dsc.Spec.Components.Data.DataConnectHub
 	if dch.ManagementState == operatorv1.Managed && dch.Namespace == "" {
 		dch.Namespace = componentApi.DefaultDataConnectHubNamespace
 	}
+	// If AI Hub is enabled and InstancesNamespace is empty, set it to the default value.
 	aiHub := &dsc.Spec.Components.AIHub
 	if aiHub.ManagementState == operatorv1.Managed {
 		if aiHub.InstancesNamespace == "" {

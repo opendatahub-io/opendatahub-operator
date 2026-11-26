@@ -430,6 +430,12 @@ var (
 		Kind:    componentApi.FeastOperatorKind,
 	}
 
+	DataConnectService = schema.GroupVersionKind{
+		Group:   "dataconnecthub.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "DataConnectService",
+	}
+
 	AIHub = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,

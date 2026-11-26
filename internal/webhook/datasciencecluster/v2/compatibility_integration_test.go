@@ -1,11 +1,13 @@
 package v2_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 	v3webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v3"
@@ -23,6 +26,43 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+func TestV2ClientCannotRelocateManagedDCH(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	ctx, env, teardown := envtestutil.SetupEnvAndClient(t,
+		[]envt.RegisterWebhooksFn{v3webhook.RegisterWebhooks, dsciv1webhook.RegisterWebhooks, v2webhook.RegisterWebhooks, dsciv2webhook.RegisterWebhooks},
+		nil, envtestutil.DefaultWebhookTimeout)
+	t.Cleanup(teardown)
+	cli := env.Client()
+	createDSCI(g, ctx, cli)
+	g.Expect(env.ConfigureCRDConversion(ctx, "datascienceclusters.datasciencecluster.opendatahub.io")).To(Succeed())
+	application := envtestutil.NewDSC("dch-v2-namespace")
+	application.Spec.Components.Data.DataConnectHub.ManagementState = operatorv1.Managed
+	application.Spec.Components.Data.DataConnectHub.Namespace = "ns-a"
+	g.Expect(cli.Create(ctx, application)).To(Succeed())
+	key := client.ObjectKeyFromObject(application)
+	legacy := &dscv2.DataScienceCluster{}
+	g.Expect(cli.Get(ctx, key, legacy)).To(Succeed())
+	var config componentApi.DSCDataConnectHub
+	g.Expect(json.Unmarshal([]byte(legacy.Annotations[dscv2.DataConnectHubV3StateAnnotation]), &config)).To(Succeed())
+	config.Namespace = "ns-b"
+	value, err := json.Marshal(config)
+	g.Expect(err).NotTo(HaveOccurred())
+	legacy.Annotations[dscv2.DataConnectHubV3StateAnnotation] = string(value)
+	err = cli.Update(ctx, legacy)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("DCH namespace is immutable while Managed"))
+	g.Expect(k8serr.IsForbidden(err) || k8serr.IsInvalid(err)).To(BeTrue(), "expected admission rejection: %v", err)
+	g.Expect(cli.Get(ctx, key, application)).To(Succeed())
+	g.Expect(application.Spec.Components.Data.DataConnectHub.Namespace).To(Equal("ns-a"))
+	// Unrelated v2 updates still preserve DCH, rather than banning v2 clients.
+	g.Expect(cli.Get(ctx, key, legacy)).To(Succeed())
+	legacy.Labels = map[string]string{"dch-test": "preserved"}
+	g.Expect(cli.Update(ctx, legacy)).To(Succeed())
+	g.Expect(cli.Get(ctx, key, application)).To(Succeed())
+	g.Expect(application.Spec.Components.Data.DataConnectHub.Namespace).To(Equal("ns-a"))
+}
 
 func TestV2ClientAgainstV3Storage(t *testing.T) {
 	t.Parallel()

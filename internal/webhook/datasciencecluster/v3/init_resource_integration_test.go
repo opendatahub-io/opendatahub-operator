@@ -163,6 +163,11 @@ func TestDefaultDSCFromSampleAdmittedByAPIServer(t *testing.T) {
 		"defaulting must preserve the explicit AIHub.instancesNamespace from the sample")
 	g.Expect(fetched.Spec.Components.Kserve.NIM.ManagementState).To(Equal(operatorv1.Managed),
 		"Kserve.NIM should remain Managed (the sample sets it, and the webhook only defaults it when empty)")
+	// The schema supplies the namespace even while DCH is Removed. The
+	// webhook only fills empty namespaces when Managed, so this also proves
+	// that the distribution-specific API default is present in the CRD.
+	g.Expect(fetched.Spec.Components.Data.DataConnectHub.ManagementState).To(Equal(operatorv1.Removed))
+	g.Expect(fetched.Spec.Components.Data.DataConnectHub.Namespace).To(Equal(componentApi.DefaultDataConnectHubNamespace))
 
 	// Prove the new capability is admitted and preserved, not silently pruned
 	// from the v3 schema. No module controllers or operands run in this envtest.
@@ -181,7 +186,9 @@ func TestDefaultDSCFromSampleAdmittedByAPIServer(t *testing.T) {
 	g.Expect(updated.Spec.Components.Data.DataConnectHub.TokenReviewAudiences).To(Equal([]string{"https://issuer.example"}))
 	invalid := updated.DeepCopy()
 	invalid.Spec.Components.Data.DataConnectHub.Namespace = "other-dch-infra"
-	g.Expect(env.Client().Update(ctx, invalid)).NotTo(Succeed(), "DCH namespace must not change while Managed")
+	err = env.Client().Update(ctx, invalid)
+	g.Expect(k8serr.IsInvalid(err)).To(BeTrue(), "CEL must reject a DCH namespace change while Managed: %v", err)
+	g.Expect(err.Error()).To(ContainSubstring("DCH namespace is immutable while Managed"))
 	invalid = updated.DeepCopy()
 	invalid.Spec.Components.Data.DataConnectHub.Gateway.Namespace = ""
 	g.Expect(env.Client().Update(ctx, invalid)).NotTo(Succeed(), "DCH Gateway namespace must not be empty")
@@ -203,4 +210,27 @@ func TestDefaultDSCFromSampleAdmittedByAPIServer(t *testing.T) {
 			g.Expect(legacy.ConvertFrom(invalid)).NotTo(Succeed(), "v2 conversion must also reject blank %s %q", field, whitespace)
 		}
 	}
+
+	// Exercise allowed transitions through the same API-server CEL rule.
+	for _, transition := range []struct {
+		name      string
+		state     operatorv1.ManagementState
+		namespace string
+	}{
+		{"unchanged Managed namespace", operatorv1.Managed, componentApi.DefaultDataConnectHubNamespace},
+		{"disable", operatorv1.Removed, componentApi.DefaultDataConnectHubNamespace},
+		{"relocate while Removed", operatorv1.Removed, "custom-dch-infra"},
+		{"enable with override", operatorv1.Managed, "custom-dch-infra"},
+	} {
+		dch := &updated.Spec.Components.Data.DataConnectHub
+		dch.ManagementState = transition.state
+		dch.Namespace = transition.namespace
+		g.Expect(env.Client().Update(ctx, updated)).To(Succeed(), transition.name)
+		g.Expect(env.Client().Get(ctx, client.ObjectKeyFromObject(updated), updated)).To(Succeed())
+		g.Expect(updated.Spec.Components.Data.DataConnectHub.Namespace).To(Equal(transition.namespace))
+	}
+	invalid = updated.DeepCopy()
+	invalid.Spec.Components.Data.DataConnectHub.Namespace = ""
+	err = env.Client().Update(ctx, invalid)
+	g.Expect(k8serr.IsInvalid(err)).To(BeTrue(), "clearing a Managed override must not relocate DCH to the default: %v", err)
 }

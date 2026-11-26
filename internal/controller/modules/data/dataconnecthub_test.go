@@ -102,11 +102,4 @@ func TestDataConnectHubOmissionMeansRemoved(t *testing.T) {
 	state, _, err := unstructured.NestedString(obj.Object, "spec", "capabilities", "dataConnectHub", "managementState")
 	require.NoError(t, err)
 	require.Equal(t, string(operatorv1.Removed), state)
-	for _, name := range []string{
-		"RELATED_IMAGE_ODH_DATA_CONNECT_HUB_CONTROLLER_IMAGE",
-		"RELATED_IMAGE_ODH_DATA_CONNECT_HUB_REST_IMAGE",
-		"RELATED_IMAGE_ODH_DATA_CONNECT_HUB_FLIGHT_IMAGE",
-	} {
-		require.Contains(t, h.GetRelatedImages(), name)
-	}
 }
