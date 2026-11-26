@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	semver "github.com/blang/semver/v4"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -87,6 +86,5 @@ func aggregatePlatformModulesStatus(ctx context.Context, rr *odhtype.Reconciliat
 }
 
 func trackerReleaseMatches(target, tracker common.Release) bool {
-	return !tracker.Version.Equals(semver.Version{}) &&
-		tracker.Version.String() == target.Version.String() && tracker.Name == target.Name
+	return tracker.Version.String() == target.Version.String() && tracker.Name == target.Name
 }

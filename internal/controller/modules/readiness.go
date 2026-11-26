@@ -16,6 +16,10 @@ import (
 // The PlatformModule controller writes this release after operator deployment
 // and cleanup; it is separate from releases reported by the module CR.
 // A matching committed release remains authoritative during runtime failures.
+// The module CR release is checked as well: it is written by the module
+// operator itself, so a dead or quota-blocked operator keeps its module CR
+// at the previous release and the batch stays gated until the module is
+// actually Ready at the target version.
 type PlatformModuleReadinessChecker struct {
 	registry      *Registry
 	client        client.Client
@@ -54,7 +58,24 @@ func (c *PlatformModuleReadinessChecker) IsReady(ctx context.Context, name strin
 	// New trackers have no release until their first deployment and cleanup
 	// complete. A missing OperatorVersion formats as "0.0.0"; check its value.
 	version := tracker.Status.Release.Version
-	return !version.Equals(semver.Version{}) && version.String() == c.targetVersion, nil
+	if version.Equals(semver.Version{}) || version.String() != c.targetVersion {
+		return false, nil
+	}
+
+	// Operator resources are committed at the target release. The module CR
+	// must also report convergence at the same release: it is written by the
+	// module operator, so runtime failures (dead operator pods, quota-blocked
+	// scheduling) keep the previous release and the batch stays gated. An
+	// empty value means the module operator never reported one (first deploy
+	// or pre-feature CR) and does not block.
+	moduleStatus, err := handler.GetModuleStatus(ctx, c.client)
+	if err != nil {
+		return false, fmt.Errorf("module %q status: %w", name, err)
+	}
+	if rv := moduleStatus.ReleaseVersion; rv != "" && rv != c.targetVersion {
+		return false, nil
+	}
+	return true, nil
 }
 
 // getPlatformModule returns nil until the tracker exists. Its CRD ships with

@@ -44,6 +44,7 @@ func TestTrackerReadinessAndPlatformAggregate(t *testing.T) {
 		missing        bool
 		ready          metav1.ConditionStatus
 		release        common.Release
+		moduleRelease  string
 		dagReady       bool
 		aggregateReady bool
 		upgradePending bool
@@ -56,11 +57,25 @@ func TestTrackerReadinessAndPlatformAggregate(t *testing.T) {
 		{name: "runtime failure after handshake", ready: metav1.ConditionFalse, release: target, dagReady: true},
 		{name: "previous release", ready: metav1.ConditionTrue, release: old, upgradePending: true},
 		{name: "different platform", ready: metav1.ConditionTrue, release: otherPlatform, dagReady: true, upgradePending: true},
+		// Operator resources committed at the target release (tracker), but
+		// the module CR still reports the previous release: the module
+		// operator is not converging (dead pods, quota-blocked scheduling)
+		// and the batch must stay gated.
+		{name: "module CR stuck at previous release", ready: metav1.ConditionTrue, release: target, moduleRelease: old.Version.String(), aggregateReady: true},
+		// The module CR converged at the target release as well: gate opens.
+		{name: "module CR converged at target release", ready: metav1.ConditionTrue, release: target, moduleRelease: target.Version.String(), dagReady: true, aggregateReady: true},
+		// Module operators that never report a release (first deploy,
+		// pre-feature CR) do not block the gate.
+		{name: "module CR without release entry", ready: metav1.ConditionTrue, release: target, moduleRelease: "", dagReady: true, aggregateReady: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
 			withTestRegistry(t)
-			DefaultRegistry().Add(provisioningModuleStub{moduleName: "module", enabled: true})
+			stub := provisioningModuleStub{moduleName: "module", enabled: true}
+			if tc.moduleRelease != "" || tc.name == "module CR without release entry" {
+				stub.status = &ModuleStatus{ReleaseVersion: tc.moduleRelease}
+			}
+			DefaultRegistry().Add(stub)
 			var objects []client.Object
 			if !tc.missing {
 				tracker := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "module"}}
