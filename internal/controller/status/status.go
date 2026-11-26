@@ -123,10 +123,14 @@ const (
 	NoRegisteredModulesReason        = "NoRegisteredModules"
 	NoManagedModulesReason           = "NoManagedModules"
 
-	AvailableReason            = "Available"
-	NotReadyReason             = "NotReady"
-	ProvisioningFailedReason   = "ProvisioningFailed"
-	ReadyReason                = "Ready"
+	AvailableReason          = "Available"
+	NotReadyReason           = "NotReady"
+	ProvisioningFailedReason = "ProvisioningFailed"
+	ReadyReason              = "Ready"
+	// DependenciesNotReadyReason indicates a required cluster prerequisite
+	// (e.g. a CRD provided by another operator) is absent, so the resource
+	// cannot be provisioned yet.
+	DependenciesNotReadyReason = "DependenciesNotReady"
 	DeletingReason             = "Deleting"
 	DeletingMessage            = "Component CR is being deleted"
 	UninstallInProgressReason  = "UninstallInProgress"

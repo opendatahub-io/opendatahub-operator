@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -54,6 +55,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/monitor"
 	rp "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
@@ -263,7 +265,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// Finish reconciling
-	monitoringConditions := r.GetMonitoringReadyCondition(ctx)
+	monitoringConditions := r.GetMonitoringReadyCondition(ctx, instance)
 	_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
 		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
 		for _, c := range monitoringConditions {
@@ -356,6 +358,10 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 				rp.CreatedOrUpdatedName("acceleratorprofiles.dashboard.opendatahub.io"),
 				rp.CreatedOrUpdatedName("hardwareprofiles.dashboard.opendatahub.io"),
 				rp.CreatedOrUpdatedName(serviceApi.MonitoringCRDName),
+				// Recompute MonitoringReady when cert-manager is installed, so the
+				// DependenciesNotReady condition clears without waiting for a resync.
+				rp.CreatedOrUpdatedName(gvk.CertManagerIssuerCRDName),
+				rp.CreatedOrUpdatedName(gvk.CertManagerCertificateCRDName),
 			)),
 		).
 		Build(r)
@@ -444,7 +450,50 @@ func (r *DSCInitializationReconciler) watchMonitoringResource(ctx context.Contex
 	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: dsci.Name}}}
 }
 
-func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Context) []DSCInitializationCondition {
+// certManagerCRDNotReadyMessage explains the missing cert-manager prerequisite
+// and the two documented remediations.
+const certManagerCRDNotReadyMessage = "cert-manager is required by the monitoring stack but its CRDs " +
+	"(issuers.cert-manager.io, certificates.cert-manager.io) are not installed. Install the cert-manager " +
+	"Operator for Red Hat OpenShift, or set spec.monitoring.managementState to Removed."
+
+// certManagerRequiredAPIs are the cert-manager APIs the odh-observability chart
+// relies on (it creates Issuer/Certificate resources). Kept consistent with the
+// monitoring module handler's own declaration.
+var certManagerRequiredAPIs = []monitor.RequiredAPI{
+	{CRDName: gvk.CertManagerIssuerCRDName, GVK: gvk.CertManagerIssuer},
+	{CRDName: gvk.CertManagerCertificateCRDName, GVK: gvk.CertManagerCertificate},
+}
+
+// certManagerDependencyMissing reports whether the cert-manager CRDs required by
+// the odh-observability chart are unavailable (absent or not yet established).
+func certManagerDependencyMissing(ctx context.Context, cli client.Client) (bool, error) {
+	result, err := monitor.CheckRequiredAPIs(ctx, cli, certManagerRequiredAPIs)
+	if err != nil {
+		return false, err
+	}
+	return result.ConditionStatus() != metav1.ConditionTrue, nil
+}
+
+func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Context, instance *dsciv2.DSCInitialization) []DSCInitializationCondition {
+	// cert-manager is a hard prerequisite for the monitoring stack: the
+	// odh-observability chart (which also installs the Monitoring CRD) creates
+	// cert-manager Issuer/Certificate resources, and the operator Deployment
+	// mounts the Secret cert-manager issues. When cert-manager is absent the
+	// chart is never deployed, so neither the Monitoring CRD nor its CR exist —
+	// which would otherwise surface below as a misleading "Monitoring is not
+	// enabled" (absent CR) or "initializing" (empty CR). Driven off the DSCI
+	// spec rather than the CR's existence so it reports correctly on a clean
+	// cluster. Report the missing prerequisite explicitly and actionably.
+	if instance != nil && instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
+		if missing, depErr := certManagerDependencyMissing(ctx, r.Client); depErr != nil {
+			return []DSCInitializationCondition{{status.ConditionMonitoringReady, status.NotReadyReason,
+				fmt.Sprintf("Failed to check cert-manager prerequisite: %v", depErr), metav1.ConditionUnknown}}
+		} else if missing {
+			return []DSCInitializationCondition{{status.ConditionMonitoringReady, status.DependenciesNotReadyReason,
+				certManagerCRDNotReadyMessage, metav1.ConditionFalse}}
+		}
+	}
+
 	monitoring := &unstructured.Unstructured{}
 	monitoring.SetGroupVersionKind(gvk.Monitoring)
 	monitoring.SetName(serviceApi.MonitoringInstanceName)
@@ -493,12 +542,46 @@ func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Co
 		return []DSCInitializationCondition{{status.ConditionMonitoringReady, status.NotReadyReason, "Monitoring stack is initializing", metav1.ConditionUnknown}}
 	}
 
-	conditions = append(conditions, DSCInitializationCondition{
-		Type:         status.ConditionMonitoringReady,
-		ReadyReason:  status.ReadyReason,
-		ReadyMessage: "Monitoring stack is initialized",
-		ReadyStatus:  metav1.ConditionTrue,
-	})
+	// Derive the aggregate MonitoringReady from the mirrored conditions rather
+	// than assuming Ready whenever any condition is present: a False mirrored
+	// condition means the operator reported a failure that must reach DSCI.
+	aggStatus := metav1.ConditionTrue
+	for _, c := range conditions {
+		switch c.ReadyStatus {
+		case metav1.ConditionFalse:
+			aggStatus = metav1.ConditionFalse
+		case metav1.ConditionUnknown:
+			if aggStatus != metav1.ConditionFalse {
+				aggStatus = metav1.ConditionUnknown
+			}
+		case metav1.ConditionTrue:
+			// Ready contributes nothing adverse to the aggregate.
+		}
+	}
+
+	switch aggStatus {
+	case metav1.ConditionFalse:
+		conditions = append(conditions, DSCInitializationCondition{
+			Type:         status.ConditionMonitoringReady,
+			ReadyReason:  status.NotReadyReason,
+			ReadyMessage: "Monitoring stack is not ready",
+			ReadyStatus:  metav1.ConditionFalse,
+		})
+	case metav1.ConditionUnknown:
+		conditions = append(conditions, DSCInitializationCondition{
+			Type:         status.ConditionMonitoringReady,
+			ReadyReason:  status.NotReadyReason,
+			ReadyMessage: "Monitoring stack is initializing",
+			ReadyStatus:  metav1.ConditionUnknown,
+		})
+	default:
+		conditions = append(conditions, DSCInitializationCondition{
+			Type:         status.ConditionMonitoringReady,
+			ReadyReason:  status.ReadyReason,
+			ReadyMessage: "Monitoring stack is initialized",
+			ReadyStatus:  metav1.ConditionTrue,
+		})
+	}
 
 	return conditions
 }

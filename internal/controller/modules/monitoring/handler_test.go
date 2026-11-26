@@ -20,6 +20,8 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/monitor"
 
 	. "github.com/onsi/gomega"
 )
@@ -602,6 +604,21 @@ func TestGetName(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
 	g.Expect(h.GetName()).Should(Equal(serviceApi.MonitoringServiceName))
+}
+
+// TestGetRequiredAPIs asserts the monitoring module declares cert-manager as a
+// prerequisite (the odh-observability chart creates cert-manager Issuer and
+// Certificate resources). It must satisfy modules.ModulePrerequisite.
+func TestGetRequiredAPIs(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+
+	var _ modules.ModulePrerequisite = h
+
+	g.Expect(h.GetRequiredAPIs()).Should(ConsistOf(
+		monitor.RequiredAPI{CRDName: gvk.CertManagerIssuerCRDName, GVK: gvk.CertManagerIssuer},
+		monitor.RequiredAPI{CRDName: gvk.CertManagerCertificateCRDName, GVK: gvk.CertManagerCertificate},
+	))
 }
 
 func TestGetOperatorManifests_InjectsMonitoringNamespace(t *testing.T) {

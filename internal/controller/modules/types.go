@@ -13,6 +13,7 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/monitor"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -198,6 +199,21 @@ type SubmoduleConditionProvider interface {
 // operator Deployment alongside RELATED_IMAGE_* and APPLICATIONS_NAMESPACE.
 type ExtraEnvProvider interface {
 	GetExtraEnv() map[string]string
+}
+
+// ModulePrerequisite is an optional interface a ModuleHandler can implement to
+// declare cluster APIs (CRDs) that must be usable before the module's operator
+// manifests are deployed. It is used for cross-operator dependencies that the
+// operator does not install itself (e.g. cert-manager for the monitoring
+// module, whose odh-observability chart creates Issuer/Certificate resources).
+//
+// When the declared APIs are not available, provisionModules skips appending the
+// module's operator manifests — so no resources referencing the missing API are
+// created — and the module is reported NotReady with the DependenciesNotReady
+// reason instead of failing the whole reconcile. Handlers with no cross-operator
+// prerequisites simply do not implement this interface.
+type ModulePrerequisite interface {
+	GetRequiredAPIs() []monitor.RequiredAPI
 }
 
 // ModuleStatus holds the parsed status from a module CR. It includes the
