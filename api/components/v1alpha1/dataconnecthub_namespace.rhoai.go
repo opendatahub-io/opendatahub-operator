@@ -19,4 +19,4 @@ limitations under the License.
 package v1alpha1
 
 // DefaultDataConnectHubNamespace contains shared DCH application infrastructure.
-const DefaultDataConnectHubNamespace = "rhoai-data-connect-hub-infra"
+const DefaultDataConnectHubNamespace = "redhat-dch-infra"
