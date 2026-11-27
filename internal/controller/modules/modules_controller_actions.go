@@ -3,6 +3,7 @@ package modules
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -540,7 +541,15 @@ func PlatformOwnsResource(platform *configApi.Platform, resource metav1.Object) 
 		(owner.APIVersion == configApi.GroupVersion.String() || owner.APIVersion == configv1alpha1.GroupVersion.String())
 }
 
-// finalizePlatform delegates operator cleanup to tracker finalizers.
+// finalizePlatform delegates operator cleanup to tracker finalizers and waits
+// for module CRs that still depend on Platform-owned 3.6 resources.
+//
+// Module CR removal stays with whoever manages the CRs (the DSC controller,
+// or GC through the DSC ownerRef). If the Platform is deleted directly while
+// the DSC still requests modules, finalization waits on the tracker
+// finalizers, which wait on the module CRs; removing the CRs (manually, or
+// by flipping the module to Removed in the DSC spec) unblocks the cascade
+// and lets the DSC controller recreate a fresh Platform.
 func finalizePlatform(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	platform, ok := rr.Instance.(*configApi.Platform)
 	if !ok {
@@ -567,5 +576,30 @@ func finalizePlatform(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	if err := errs.ErrorOrNil(); err != nil {
 		return err
 	}
-	return nil
+	if slices.Contains(platform.Finalizers, metav1.FinalizerOrphanDependents) ||
+		slices.Contains(platform.Finalizers, metav1.FinalizerDeleteDependents) {
+		return nil
+	}
+
+	// Background garbage collection would remove legacy operators as soon as
+	// Platform disappears, even if deletion started before trackers existed.
+	legacy, err := listLegacyModuleResources(ctx, rr)
+	if err != nil {
+		return fmt.Errorf("checking legacy module resources before Platform removal: %w", err)
+	}
+	if len(legacy) == 0 {
+		return nil
+	}
+	// 3.6 resources share Platform ownership. Narrowing this wait
+	// to a specific module requires a reliable module identifier on resources.
+	return DefaultRegistry().ForAll(func(handler ModuleHandler, _ bool) error {
+		state, err := handler.GetModuleCRState(ctx, rr.Client)
+		if err != nil {
+			return fmt.Errorf("checking legacy module %s CR state: %w", handler.GetName(), err)
+		}
+		if state != CRStateAbsent {
+			return fmt.Errorf("waiting for legacy module %s CR removal", handler.GetName())
+		}
+		return nil
+	})
 }

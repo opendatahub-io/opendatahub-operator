@@ -76,14 +76,15 @@ CRDs are an exception — the deploy action routes CRDs to a dedicated
 `deployCRD()` path that never sets owner references (CRDs are cluster-scoped
 singletons that may be shared).
 
-`status.resources` is desired inventory from last fully successful operator
-reconcile. The final action checks desired resource existence and completed
-Deployment rollout through live reads, deletes old-minus-new stale resources in
-reverse order, waits for deletion, then publishes inventory and release together.
-Failed deploy, incomplete rollout, or unfinished cleanup leaves old inventory and
-release intact for retry. Cleanup checks live controller ownership and uses UID
-and resourceVersion preconditions. CRDs, Namespaces, Leases, and unmanaged objects
-survive with matching owner references detached; NotFound and NoMatch are harmless.
+`status.resources` is the inventory for stale cleanup and finalization. Before
+deploy, the controller persists the union of the recorded and rendered inventory.
+The final action deletes stale resources in reverse order and waits for deletion.
+After cleanup succeeds, it publishes the desired inventory and release together.
+An interrupted deploy or pending cleanup preserves the inventory and previous
+release. Deployment rollout is reported separately. Cleanup checks controller
+ownership through the cache and uses UID and resourceVersion preconditions.
+CRDs, Namespaces, Leases, and unmanaged objects survive with matching owner
+references detached. NotFound and NoMatch are harmless.
 Generic GC is not used by PlatformModule.
 
 Module-CR readiness is separate from the operator release commit: missing xKS

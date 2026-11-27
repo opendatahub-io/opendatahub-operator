@@ -419,6 +419,7 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md && \
 	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)|g" ./docs/api-overview.md && \
 	$(SED_COMMAND) -i "s|](#managementspec)|](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)|g" ./docs/api-overview.md && \
+	$(SED_COMMAND) -i "s|](#release)|](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)|g" ./docs/api-overview.md && \
 	go run ./hack/disambiguate-api-doc-anchors.go ./docs/api-overview.md
 	$(CRD_REF_DOCS) --source-path ./api/cloudmanager/ --output-path ./docs/cloudmanager-api-overview.md --renderer markdown --config ./crd-ref-docs.cloudmanager.config.yaml
 

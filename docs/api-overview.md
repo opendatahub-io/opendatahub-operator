@@ -1978,7 +1978,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `release` _[Release](#release)_ | Release identifies the platform release currently being orchestrated. |  |  |
+| `release` _[Release](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)_ | Release identifies the platform release currently being orchestrated. |  |  |
 | `clearedRunlevel` _integer_ | ClearedRunlevel is the highest runlevel the Platform controller has<br />opened for deployment. |  |  |
 
 
@@ -2096,7 +2096,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `release` _[Release](#release)_ | Release identifies the platform release currently being orchestrated. |  |  |
+| `release` _[Release](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)_ | Release identifies the platform release currently being orchestrated. |  |  |
 | `clearedRunlevel` _integer_ | ClearedRunlevel is the highest runlevel the Platform controller has<br />opened for deployment. |  |  |
 
 
@@ -2153,8 +2153,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `release` _[Release](#release)_ | Release identifies the platform version whose operator resources were<br />successfully applied and tracker-owned cleanup completed for this inventory. |  |  |
-| `resources` _[ResourceRef](#resourceref) array_ | Resources is desired operator-resource inventory from the last fully<br />successful apply and stale cleanup. It advances with Release and drives<br />finalizer cleanup. Runtime readiness is reported separately in conditions.<br />CRDs, Namespaces, and Leases can appear in inventory but are never deleted. |  |  |
+| `release` _[Release](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)_ | Release identifies the platform version whose operator resources were<br />successfully applied and tracker-owned cleanup completed for this inventory. |  |  |
+| `resources` _[ResourceRef](#resourceref) array_ | Resources is the operator-resource inventory driving stale cleanup and<br />finalizer deletion. The desired set of each deployment attempt is<br />merged into it before deploy, so an interrupted deployment cannot<br />orphan what it applied; entries are pruned only after a fully<br />successful apply and stale cleanup, together with the Release commit.<br />Runtime readiness is reported separately in conditions. CRDs,<br />Namespaces, and Leases can appear in inventory but are never deleted. |  |  |
 
 
 #### PlatformModules (v1alpha2)
@@ -2235,11 +2235,11 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `group` _string_ | Group of the resource (empty for the core API group). |  |  |
-| `version` _string_ | Version of the resource. |  |  |
-| `kind` _string_ | Kind of the resource (e.g. Deployment, Service, ClusterRole). |  |  |
-| `namespace` _string_ | Namespace of the resource (empty for cluster-scoped resources). |  |  |
-| `name` _string_ | Name of the resource. |  |  |
+| `group` _string_ | Group of the resource (empty for the core API group). |  | MaxLength: 253 <br /> |
+| `version` _string_ | Version of the resource. |  | MaxLength: 64 <br />MinLength: 1 <br /> |
+| `kind` _string_ | Kind of the resource (e.g. Deployment, Service, ClusterRole). |  | MaxLength: 253 <br />MinLength: 1 <br /> |
+| `namespace` _string_ | Namespace of the resource (empty for cluster-scoped resources). |  | MaxLength: 63 <br /> |
+| `name` _string_ | Name of the resource. |  | MaxLength: 253 <br />MinLength: 1 <br /> |
 
 
 
@@ -2384,7 +2384,7 @@ _Appears in:_
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `components` _[ComponentsStatus](#componentsstatus)_ | Expose component's specific status |  |  |
-| `release` _[Release](#release)_ | Version and release type |  |  |
+| `release` _[Release](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)_ | Version and release type |  |  |
 
 
 
@@ -2517,7 +2517,7 @@ _Appears in:_
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `components` _[ComponentsStatus](#componentsstatus-v3)_ | Expose component's specific status |  |  |
-| `release` _[Release](#release)_ | Version and release type |  |  |
+| `release` _[Release](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)_ | Version and release type |  |  |
 
 
 
@@ -2595,7 +2595,7 @@ _Appears in:_
 | `conditions` _Condition array_ | Conditions describes the state of the DSCInitializationStatus resource |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster |  |  |
 | `errorMessage` _string_ |  |  |  |
-| `release` _[Release](#release)_ | Version and release type |  |  |
+| `release` _[Release](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)_ | Version and release type |  |  |
 
 
 #### DevFlags
@@ -2701,7 +2701,7 @@ _Appears in:_
 | `conditions` _Condition array_ | Conditions describes the state of the DSCInitializationStatus resource |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster |  |  |
 | `errorMessage` _string_ |  |  |  |
-| `release` _[Release](#release)_ | Version and release type |  |  |
+| `release` _[Release](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)_ | Version and release type |  |  |
 
 
 #### DevFlags

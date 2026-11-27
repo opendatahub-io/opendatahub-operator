@@ -67,6 +67,8 @@ type provisioningModuleStub struct {
 	moduleName string
 	enabled    bool
 	status     *ModuleStatus
+	statusErr  error
+	crStateErr error
 	submodules []SubmoduleCondition
 }
 
@@ -106,6 +108,9 @@ func (s provisioningModuleStub) GetRelatedImages() []string {
 }
 
 func (s provisioningModuleStub) GetModuleStatus(context.Context, client.Client) (*ModuleStatus, error) {
+	if s.statusErr != nil {
+		return nil, s.statusErr
+	}
 	if s.status != nil {
 		return s.status, nil
 	}
@@ -113,6 +118,9 @@ func (s provisioningModuleStub) GetModuleStatus(context.Context, client.Client) 
 }
 
 func (s provisioningModuleStub) GetModuleCRState(context.Context, client.Client) (CRState, error) {
+	if s.crStateErr != nil {
+		return CRStateAbsent, s.crStateErr
+	}
 	return CRStateAlive, nil
 }
 

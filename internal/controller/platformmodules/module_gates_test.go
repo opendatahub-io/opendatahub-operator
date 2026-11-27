@@ -96,6 +96,41 @@ func TestTrackerChecksGatesAfterPreflightRenderFailure(t *testing.T) {
 	g.Expect(checkModuleUpgradeGates(t.Context(), rr)).To(Succeed())
 }
 
+func TestTrackerChecksGatesWhenSiblingRenderFails(t *testing.T) {
+	// Caller-level: a sibling module whose manifests cannot render must not
+	// bypass this tracker's own collected acknowledgment gates. Discovery
+	// records the failure, but the barrier still enforces every gate it
+	// managed to collect.
+	g := NewWithT(t)
+	withCleanRegistries(t)
+	modules.Add(&stubModuleHandler{BaseHandler: modules.BaseHandler{
+		Config: modules.ModuleConfig{Name: "broken-sibling", ManifestDir: "missing-module"},
+	}, enabled: true})
+	const namespace = "gate-test-operator"
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: "default-dsci"}}
+	dsci.Spec.ApplicationsNamespace = namespace
+	platform := platformWithDAG(0)
+	platform.UID = "platform-uid"
+	cli, err := fakeclient.New(fakeclient.WithObjects(platform, dsci))
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cluster.Init(t.Context(), cli, operatorconfig.OperatorSettings{
+		OperatorNamespace: namespace, PlatformType: string(cluster.XKS),
+	})).To(Succeed())
+	pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "gate-module"}}
+	rr := &odhtype.ReconciliationRequest{
+		Client: cli, Instance: pm, Release: testRelease("99.99.99"),
+		ManifestsBasePath: "../modules/testdata",
+		GateEntries:       map[string]string{"ack-99.99.99-module-gate": "Review migration"},
+		Conditions:        conditionstest.NewManager(pm, status.ConditionTypeProvisioningProgress),
+	}
+	g.Expect(checkModuleUpgradeGates(t.Context(), rr)).To(BeAssignableToTypeOf(odherrors.StopError{}))
+	ack := &corev1.ConfigMap{}
+	g.Expect(cli.Get(t.Context(), client.ObjectKey{Namespace: namespace, Name: gates.AcksConfigMap}, ack)).To(Succeed())
+	ack.Data["ack-99.99.99-module-gate"] = "true"
+	g.Expect(cli.Update(t.Context(), ack)).To(Succeed())
+	g.Expect(checkModuleUpgradeGates(t.Context(), rr)).To(Succeed())
+}
+
 func TestTrackerSkipsUpgradeGatesWhenDeploymentDeferred(t *testing.T) {
 	// A closed runlevel sets SkipDeploy, but its delayed requeue lets later
 	// actions run. A nil client verifies this gate returns before any API access.

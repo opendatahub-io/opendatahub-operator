@@ -54,8 +54,12 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 				resources.CreatedOrUpdatedOrDeletedLabeled(gates.UpgradeGateLabel, "true"),
 			)),
 		).
-		WithAction(checkPlatformModuleUpgradeGates).
 		WithAction(cleanupDisabledPlatformModules).
+		// Tracker creation and deployment stay behind the shared upgrade
+		// gate barrier, but disabled-module cleanup must proceed while an
+		// upgrade gate is pending: removal must not be held hostage by an
+		// unacknowledged gate.
+		WithAction(checkPlatformModuleUpgradeGates).
 		WithAction(provisionPlatformModules).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),

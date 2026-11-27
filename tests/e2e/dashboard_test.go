@@ -11,8 +11,8 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -271,23 +271,15 @@ func (tc *DashboardTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 		t.Skip("Skipping test because operands ownership by component CR is not enforced/guaranteed on XKS platform")
 	}
 
-	// Operand deployments are applied by the dashboard-operator and carry no
-	// platform.opendatahub.io/module label. Exclude module operator
-	// deployments (labelled by the PlatformModule controller): their owner is
-	// the PlatformModule tracker, asserted by the check above.
-	operandSelector, err := k8slabels.NewRequirement(
-		labels.ODHPlatformPrefix+"/module", selection.DoesNotExist, nil,
-	)
-	require.NoError(t, err, "failed to build operand label requirement")
-
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
 		WithListOptions(
 			&client.ListOptions{
-				Namespace: tc.AppsNamespace,
+				Namespace:     tc.AppsNamespace,
+				FieldSelector: fields.OneTermNotEqualSelector("metadata.name", dashboardControllerDeployment),
 				LabelSelector: k8slabels.Set{
 					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-				}.AsSelector().Add(*operandSelector),
+				}.AsSelector(),
 			},
 		),
 		WithCondition(

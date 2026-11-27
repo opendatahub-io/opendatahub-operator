@@ -12,6 +12,8 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
@@ -20,6 +22,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
@@ -38,13 +41,16 @@ func TestTrackerReadinessAndPlatformAggregate(t *testing.T) {
 	old.Version = ofversion.OperatorVersion{Version: semver.MustParse("1.2.2")}
 	otherPlatform := target
 	otherPlatform.Name = cluster.XKS
+	missingModuleCR := k8serr.NewNotFound(schema.GroupResource{Group: testProvisioningModuleGroup, Resource: "modules"}, "default-module")
 
 	for _, tc := range []struct {
 		name           string
 		missing        bool
+		foreign        bool
 		ready          metav1.ConditionStatus
 		release        common.Release
 		moduleRelease  string
+		moduleError    error
 		dagReady       bool
 		aggregateReady bool
 		upgradePending bool
@@ -56,7 +62,13 @@ func TestTrackerReadinessAndPlatformAggregate(t *testing.T) {
 		{name: "current ready", ready: metav1.ConditionTrue, release: target, dagReady: true, aggregateReady: true},
 		{name: "runtime failure after handshake", ready: metav1.ConditionFalse, release: target, dagReady: true},
 		{name: "previous release", ready: metav1.ConditionTrue, release: old, upgradePending: true},
+		{name: "missing module CR on OpenShift", release: target, moduleError: missingModuleCR},
+		{name: "missing module CR with foreign-platform tracker release", release: otherPlatform, moduleError: missingModuleCR},
 		{name: "different platform", ready: metav1.ConditionTrue, release: otherPlatform, dagReady: true, upgradePending: true},
+		// A same-name tracker owned by another Platform instance must not
+		// count as ready for this Platform, even when it reports the target
+		// release.
+		{name: "foreign tracker", foreign: true, ready: metav1.ConditionTrue, release: target},
 		// Operator resources committed at the target release (tracker), but
 		// the module CR still reports the previous release: the module
 		// operator is not converging (dead pods, quota-blocked scheduling)
@@ -71,7 +83,7 @@ func TestTrackerReadinessAndPlatformAggregate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
 			withTestRegistry(t)
-			stub := provisioningModuleStub{moduleName: "module", enabled: true}
+			stub := provisioningModuleStub{moduleName: "module", enabled: true, statusErr: tc.moduleError}
 			if tc.moduleRelease != "" || tc.name == "module CR without release entry" {
 				stub.status = &ModuleStatus{ReleaseVersion: tc.moduleRelease}
 			}
@@ -79,17 +91,26 @@ func TestTrackerReadinessAndPlatformAggregate(t *testing.T) {
 			var objects []client.Object
 			if !tc.missing {
 				tracker := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "module"}}
+				ownerUID := types.UID("platform-uid")
+				if tc.foreign {
+					ownerUID = "another-platform-uid"
+				}
+				controller := true
+				tracker.OwnerReferences = []metav1.OwnerReference{{
+					APIVersion: configApi.GroupVersion.String(), Kind: configApi.PlatformKind,
+					Name: configApi.PlatformInstanceName, UID: ownerUID, Controller: &controller,
+				}}
 				tracker.Status.Release = tc.release
 				tracker.SetConditions([]common.Condition{{Type: status.ConditionTypeReady, Status: tc.ready}})
 				objects = append(objects, tracker)
 			}
 			cli, err := fakeclient.New(fakeclient.WithObjects(objects...))
-			g.Expect(err).ToNot(HaveOccurred())
-			ready, err := NewReadinessChecker(DefaultRegistry(), cli, &configApi.PlatformModules{}, target.Version.String()).IsReady(t.Context(), "module")
-			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
+			platform := &configApi.Platform{ObjectMeta: metav1.ObjectMeta{Name: configApi.PlatformInstanceName, UID: "platform-uid"}}
+			ready, err := NewReadinessChecker(DefaultRegistry(), cli, platform, target.Version.String()).IsReady(t.Context(), "module")
+			g.Expect(errors.Is(err, tc.moduleError)).To(BeTrue(), "unexpected module lookup result: %v", err)
 			g.Expect(ready).To(Equal(tc.dagReady))
 
-			platform := &configApi.Platform{ObjectMeta: metav1.ObjectMeta{Name: configApi.PlatformInstanceName, UID: "platform-uid"}}
 			rr := &odhtype.ReconciliationRequest{
 				Client: cli, Instance: platform, Release: target,
 				Conditions: conditionstest.NewManager(platform, status.ConditionTypeModulesReady),
@@ -121,25 +142,35 @@ func TestCoordinateDAGRestoresCheckpointAfterRestart(t *testing.T) {
 		Name:    cluster.OpenDataHub,
 		Version: ofversion.OperatorVersion{Version: semver.MustParse("1.2.3")},
 	}
+	old := target
+	old.Version = ofversion.OperatorVersion{Version: semver.MustParse("1.2.2")}
 	for name, order := range map[string]int{"first": 20, "second": 31} {
 		DefaultRegistry().Add(provisioningModuleStub{moduleName: name, enabled: true})
 		provision.DefaultRegistry().Add(name, provision.KindModule, dag.RL(order))
 	}
-	tracker := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "first"}}
-	tracker.Status.Release = target
-	tracker.SetConditions([]common.Condition{{Type: status.ConditionTypeReady, Status: metav1.ConditionFalse}})
+	// The first module is below the target release: the walk clears batch
+	// 20 and stays blocked before batch 31.
+	tracker := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "first", OwnerReferences: []metav1.OwnerReference{{
+		APIVersion: configApi.GroupVersion.String(), Kind: configApi.PlatformKind,
+		Name: configApi.PlatformInstanceName, UID: "platform-uid", Controller: new(true),
+	}}}}
+	tracker.Status.Release = old
+	tracker.SetConditions([]common.Condition{{Type: status.ConditionTypeReady, Status: metav1.ConditionTrue}})
 	cli, err := fakeclient.New(fakeclient.WithObjects(tracker))
 	g.Expect(err).ToNot(HaveOccurred())
 	platform := &configApi.Platform{ObjectMeta: metav1.ObjectMeta{Name: configApi.PlatformInstanceName, UID: "platform-uid"}}
+	// Restart state: empty in-memory tracker, durable checkpoint at 31.
 	platform.Status.DAG.Release = target
-	platform.Status.DAG.ClearedRunlevel = 20
+	platform.Status.DAG.ClearedRunlevel = 31
 	rr := &odhtype.ReconciliationRequest{
 		Client: cli, Instance: platform, Release: target,
 		Conditions: conditionstest.NewManager(platform, status.ConditionTypeProvisioningProgress),
 	}
-	// The in-memory runlevel tracker is empty, as after an operator restart.
-	g.Expect(coordinateDAG(t.Context(), rr)).To(Succeed())
-	g.Expect(platform.Status.DAG.ClearedRunlevel).To(Equal(31))
+	err = coordinateDAG(t.Context(), rr)
+	var pending odherrors.RequeueAfterError
+	g.Expect(errors.As(err, &pending)).To(BeTrue(), "the blocked walk must requeue, got: %v", err)
+	g.Expect(platform.Status.DAG.ClearedRunlevel).To(Equal(31),
+		"a lost checkpoint would be recomputed as 20 by the blocked walk")
 	g.Expect(platform.Status.DAG.Release).To(Equal(target))
 }
 
@@ -157,8 +188,7 @@ func TestCoordinateDAGModuleReadiness(t *testing.T) {
 		{name: "removed module", registry: true, want: 31},
 		{name: "registry disabled", managed: true, want: 31},
 		{name: "managed module awaiting tracker", managed: true, registry: true, want: 20},
-		{name: "managed module with terminating tracker", managed: true, registry: true, terminating: true, want: 20},
-	} {
+		{name: "managed module with terminating tracker", managed: true, registry: true, terminating: true, want: 20}} {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
 			withTestRegistry(t)
@@ -169,7 +199,7 @@ func TestCoordinateDAGModuleReadiness(t *testing.T) {
 			}
 			provision.DefaultRegistry().Add("first", provision.KindModule, dag.RL(20))
 			provision.DefaultRegistry().Add("second", provision.KindModule, dag.RL(31))
-			platform := &configApi.Platform{ObjectMeta: metav1.ObjectMeta{Name: configApi.PlatformInstanceName}}
+			platform := &configApi.Platform{ObjectMeta: metav1.ObjectMeta{Name: configApi.PlatformInstanceName, UID: "platform-uid"}}
 			cli, err := fakeclient.New()
 			g.Expect(err).NotTo(HaveOccurred())
 			rr := &odhtype.ReconciliationRequest{
@@ -181,11 +211,26 @@ func TestCoordinateDAGModuleReadiness(t *testing.T) {
 				platform.Status.DAG.Release = rr.Release
 				platform.Status.DAG.ClearedRunlevel = 20
 				tracker := &configApi.PlatformModule{
-					ObjectMeta: metav1.ObjectMeta{Name: "first", Finalizers: []string{"test-finalizer"}},
-					Status:     configApi.PlatformModuleStatus{Release: rr.Release},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "first",
+						Finalizers: []string{"test-finalizer"},
+						// Validly owned by this Platform: deletion state, not
+						// failed ownership validation, must be what blocks.
+						OwnerReferences: []metav1.OwnerReference{{
+							APIVersion: configApi.GroupVersion.String(), Kind: configApi.PlatformKind,
+							Name: platform.Name, UID: platform.UID, Controller: new(true),
+						}},
+					},
+					Status: configApi.PlatformModuleStatus{Release: rr.Release},
 				}
 				g.Expect(cli.Create(t.Context(), tracker)).To(Succeed())
+				// While live and validly owned, the tracker opens runlevel 31.
+				g.Expect(coordinateDAG(t.Context(), rr)).To(Succeed())
+				g.Expect(platform.Status.DAG.ClearedRunlevel).To(Equal(31),
+					"a validly owned live tracker must open the next batch")
 				g.Expect(cli.Delete(t.Context(), tracker)).To(Succeed())
+				// Re-walk from scratch: only the terminating state differs now.
+				platform.Status.DAG.ClearedRunlevel = 0
 			}
 			err = coordinateDAG(t.Context(), rr)
 			g.Expect(platform.Status.DAG.ClearedRunlevel).To(BeNumerically("==", tc.want))
@@ -218,6 +263,25 @@ func TestPlatformReportsDisabledTrackerRemoval(t *testing.T) {
 	g.Expect(condition.Message).To(ContainSubstring("user/GitOps"))
 }
 
+// A disabled module without a tracker must surface CR-state lookup failures
+// instead of reporting an unconfirmed "removal pending" state.
+func TestPlatformAggregatePropagatesModuleCRStateErrors(t *testing.T) {
+	g := NewWithT(t)
+	withTestRegistry(t)
+	stateErr := errors.New("module CR state unavailable")
+	DefaultRegistry().Add(provisioningModuleStub{moduleName: "module", enabled: false, crStateErr: stateErr})
+	cli, err := fakeclient.New()
+	g.Expect(err).ToNot(HaveOccurred())
+	platform := &configApi.Platform{ObjectMeta: metav1.ObjectMeta{Name: configApi.PlatformInstanceName, UID: "platform-uid"}}
+	rr := &odhtype.ReconciliationRequest{
+		Client: cli, Instance: platform,
+		Conditions: conditionstest.NewManager(platform, status.ConditionTypeModulesReady),
+	}
+	err = aggregatePlatformModulesStatus(t.Context(), rr)
+	g.Expect(err).To(MatchError(stateErr))
+	g.Expect(err.Error()).To(ContainSubstring("module CR state"))
+}
+
 func TestTrackerLookupDistinguishesAbsentObjectFromAPIFailures(t *testing.T) {
 	resource := configApi.GroupVersion.WithResource("platformmodules").GroupResource()
 	for _, tc := range []struct {
@@ -239,14 +303,14 @@ func TestTrackerLookupDistinguishesAbsentObjectFromAPIFailures(t *testing.T) {
 				},
 			}))
 			g.Expect(err).ToNot(HaveOccurred())
-			ready, err := NewReadinessChecker(DefaultRegistry(), cli, &configApi.PlatformModules{}, "1.2.3").IsReady(t.Context(), "module")
+			platform := &configApi.Platform{}
+			ready, err := NewReadinessChecker(DefaultRegistry(), cli, platform, "1.2.3").IsReady(t.Context(), "module")
 			g.Expect(ready).To(BeFalse())
 			if tc.wantError {
 				g.Expect(err).To(MatchError(tc.err))
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 			}
-			platform := &configApi.Platform{}
 			rr := &odhtype.ReconciliationRequest{Client: cli, Instance: platform,
 				Conditions: conditionstest.NewManager(platform, status.ConditionTypeModulesReady),
 			}

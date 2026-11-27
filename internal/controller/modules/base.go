@@ -344,6 +344,7 @@ func (b *BaseHandler) GetModuleStatus(ctx context.Context, cli client.Client) (*
 		Generation:         u.GetGeneration(),
 		ReleaseVersion:     releaseVersion,
 		Releases:           releases,
+		Deleting:           !u.GetDeletionTimestamp().IsZero(),
 	}, nil
 }
 

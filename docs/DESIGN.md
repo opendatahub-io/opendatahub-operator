@@ -76,9 +76,9 @@ The `config.opendatahub.io/v1alpha2` Platform CR holds shared configuration and 
 | DSC/DSCI | Own module CRs and project module status into the DSC/DSCI API. |
 | Out-of-tree module operator | Reconciles its module CR and owns the component workloads. |
 
-Disabling a module deletes its owned tracker. DSC/DSCI request module CR deletion on OpenShift; users or GitOps do so on xKS. The tracker finalizer keeps the operator available until the module CR is absent. Platform explicitly waits for its tracker finalizers and reports pending removal in readiness. Inventory cleanup preserves CRDs, Namespaces, Leases, and externally owned resources. Each tracker commits its inventory and release only after operator resource apply and tracker-owned cleanup complete. Runtime readiness continues to follow module CR status.
+Disabling a module deletes its owned tracker. DSC/DSCI request module CR deletion on OpenShift; users or GitOps do so on xKS. The tracker finalizer keeps the operator available until the module CR is absent: when the module CR is already deleting, cleanup waits until it is gone. If the owning Platform re-enables the module while the old tracker is terminating, the finalizer instead cleans up that tracker's operator resources while the module CR is still live, so the replacement tracker can deploy. Platform explicitly waits for its tracker finalizers and reports pending removal in readiness. Inventory cleanup preserves CRDs, Namespaces, Leases, and externally owned resources. Each tracker commits its inventory and release only after operator resource apply and tracker-owned cleanup complete. Runtime readiness continues to follow module CR status.
 
-See [PlatformModule tracker lifecycle](platformmodule-tracker-design.md) for release gating, safe inventory cleanup, finalization, and watches, and the [module integration guide](../internal/controller/modules/README.md) for handler implementation.
+See [PlatformModule ownership and cleanup](../internal/controller/modules/README.md#ownership-and-cleanup) for inventory and finalization, and the [module integration guide](../internal/controller/modules/README.md) for handler implementation.
 
 ### Component CRs and controllers
 

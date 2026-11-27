@@ -49,6 +49,7 @@ func NewPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &configApi.PlatformModule{}).
 		WithInstanceName("platformmodule").
 		WithDynamicOwnership(reconciler.ExcludeGVKs(gvk.Lease)).
+		WithPostStatusFn(protectPlatformModuleInventory).
 		WatchesGVK(
 			gvk.Platform,
 			reconciler.WithEventHandler(platformDAGAdvanceHandler(mgr.GetScheme())),
@@ -75,7 +76,7 @@ func NewPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		WithAction(checkModuleUpgradeGates).
 		WithAction(injectModuleEnv).
 		WithAction(injectModulePlatformConfig).
-		WithAction(labelOperatorDeployments).
+		WithAction(recordIntendedInventory).
 		WithAction(deploy.NewAction(
 			// Migrate SSA ownership from datasciencecluster on upgrades from 3.5
 			// and from platform on upgrades from 3.6.
@@ -151,9 +152,11 @@ func platformDAGAdvanceHandler(scheme *runtime.Scheme) handler.EventHandler {
 	}
 }
 
-// platformDAGAdvanceRequests wakes the first eligible batch on a new release,
-// then only newly opened runlevels. Fanning out every Platform status update
-// would create a tracker -> Platform status -> tracker reconciliation loop.
+// platformDAGAdvanceRequests wakes the trackers eligible for reconciliation:
+// on a new release every module in a cleared batch (a runlevel timeout can
+// re-clear several batches at once), then only newly opened runlevels.
+// Fanning out every Platform status update would create a tracker ->
+// Platform status -> tracker reconciliation loop.
 func platformDAGAdvanceRequests(oldPlatform, newPlatform *configApi.Platform) []reconcile.Request {
 	if oldPlatform == nil || newPlatform == nil {
 		return nil
@@ -178,7 +181,6 @@ func platformDAGAdvanceRequests(oldPlatform, newPlatform *configApi.Platform) []
 	// Do not filter runtime enablement: a deleting tracker still needs retries.
 	var requests []reconcile.Request
 	for _, batch := range batches {
-		before := len(requests)
 		for _, node := range provision.ModulesInBatch(batch) {
 			order := node.GetRunlevel().Order
 			if !modules.DefaultRegistry().IsEnabled(node.GetName()) || order > newDAG.ClearedRunlevel {
@@ -188,9 +190,6 @@ func platformDAGAdvanceRequests(oldPlatform, newPlatform *configApi.Platform) []
 				continue
 			}
 			requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKey{Name: node.GetName()}})
-		}
-		if newRelease && len(requests) > before {
-			break
 		}
 	}
 

@@ -213,6 +213,9 @@ type ModuleStatus struct {
 	// .status.releases on the module CR. Mirrored into the DSC
 	// status so consumers can inspect per-module release metadata.
 	Releases []common.ComponentRelease
+	// Deleting comes from the same read as Conditions, so readiness cannot
+	// mirror Ready from a CR that is already terminating.
+	Deleting bool
 }
 
 // OperatorManifests holds the manifest descriptors returned by a module handler.

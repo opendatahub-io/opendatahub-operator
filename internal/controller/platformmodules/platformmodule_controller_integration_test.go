@@ -3,12 +3,17 @@ package platformmodules
 
 import (
 	"context"
+	"maps"
+	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	frameworkreconciler "github.com/opendatahub-io/odh-platform-utilities/framework/controller/reconciler"
 	frameworkmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/spf13/viper"
@@ -73,7 +78,10 @@ func (h *controllerTestHandler) GetModuleCRState(ctx context.Context, cli client
 }
 
 // Start a fresh manager against the same API server on each restart.
-func startPlatformModuleController(t *testing.T, et *envt.EnvT, manifestsRoot string, blockStatus, statusFailed *atomic.Bool, withPlatform bool) func() {
+func startPlatformModuleController(
+	t *testing.T, et *envt.EnvT, manifestsRoot string, blockStatus, statusFailed *atomic.Bool,
+	withPlatform bool, customize ...func(*interceptor.Funcs),
+) func() {
 	t.Helper()
 	g := NewWithT(t)
 	targetVersion := cluster.GetRelease().Version.String()
@@ -91,6 +99,9 @@ func startPlatformModuleController(t *testing.T, et *envt.EnvT, manifestsRoot st
 			}
 			return cli.SubResource(subresource).Apply(ctx, obj, opts...)
 		},
+	}
+	for _, configure := range customize {
+		configure(&faults)
 	}
 	mgr, err := ctrl.NewManager(et.Config(), ctrl.Options{
 		Scheme: et.Scheme(), Metrics: metricsserver.Options{BindAddress: "0"},
@@ -247,7 +258,28 @@ func TestPlatformModuleFirstUpgradeCollectsLegacyResources(t *testing.T) {
 	// Preserve obsolete resources until the tracker publishes its release.
 	var blockStatus, statusFailed atomic.Bool
 	blockStatus.Store(true)
-	startPlatformModuleController(t, et, filepath.Join(et.ProjectRoot(), "internal/controller/platformmodules/testdata"), &blockStatus, &statusFailed, true)
+	// Legacy cleanup must never delete a 3.6 resource before the tracker has
+	// committed the target release: record any delete attempted against the
+	// seeded 3.6 inventory and verify the release ordering afterwards.
+	var legacyDeletedBeforeRelease atomic.Bool
+	onLegacyDelete := func(obj client.Object) {
+		if obj.GetAnnotations()[annotations.PlatformVersion] != "3.6.0" {
+			return
+		}
+		tracker := &configApi.PlatformModule{}
+		if err := cli.Get(ctx, client.ObjectKey{Name: "testmod"}, tracker); err != nil ||
+			tracker.Status.Release.Version.String() != cluster.GetRelease().Version.String() ||
+			tracker.Status.Release.Name != cluster.GetRelease().Name {
+			legacyDeletedBeforeRelease.Store(true)
+		}
+	}
+	startPlatformModuleController(t, et, filepath.Join(et.ProjectRoot(), "internal/controller/platformmodules/testdata"), &blockStatus, &statusFailed, true,
+		func(faults *interceptor.Funcs) {
+			faults.Delete = func(ctx context.Context, cli client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				onLegacyDelete(obj)
+				return cli.Delete(ctx, obj, opts...)
+			}
+		})
 	g.Eventually(statusFailed.Load).WithTimeout(20 * time.Second).Should(BeTrue())
 	for _, obj := range obsolete {
 		g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(obj), obj)).To(Succeed())
@@ -283,6 +315,8 @@ func TestPlatformModuleFirstUpgradeCollectsLegacyResources(t *testing.T) {
 		g.Expect(cli.Update(ctx, obj)).To(Succeed())
 		g.Expect(k8serr.IsNotFound(cli.Get(ctx, client.ObjectKeyFromObject(obj), obj))).To(BeTrue())
 	}
+	g.Expect(legacyDeletedBeforeRelease.Load()).To(BeFalse(),
+		"legacy 3.6 resources were deleted before the tracker committed release %s", cluster.GetRelease().Version.String())
 }
 
 func TestLegacyUpgradeKeepsOperatorUntilRemovedModuleCRIsGone(t *testing.T) {
@@ -359,6 +393,118 @@ func TestLegacyUpgradeKeepsOperatorUntilRemovedModuleCRIsGone(t *testing.T) {
 	g.Expect(k8serr.IsNotFound(cli.Get(ctx, trackerKey, &configApi.PlatformModule{}))).To(BeTrue())
 }
 
+func TestPlatformModuleRecoversInterruptedInventory(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+	const namespace = "completion"
+	et := newPlatformModuleTestEnv(t, namespace, "2.0.0", true)
+	cli := et.Client()
+	registerTestModule(t, et)
+	g.Expect(cli.Create(ctx, platformWithDAG(0))).To(Succeed())
+	pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "testmod"}}
+	g.Expect(cli.Create(ctx, pm)).To(Succeed())
+	operatorKey := client.ObjectKey{Namespace: namespace, Name: "operator-config"}
+
+	var blockCheckpoint, checkpointFailed, blockStatus, statusFailed atomic.Bool
+	blockCheckpoint.Store(true)
+	blockStatus.Store(true)
+	manifestsRoot := filepath.Join(et.ProjectRoot(), "internal/controller/platformmodules/testdata")
+	stop := startPlatformModuleController(t, et, manifestsRoot, &blockStatus, &statusFailed, false,
+		func(faults *interceptor.Funcs) {
+			faults.SubResourcePatch = func(ctx context.Context, cli client.Client, subresource string, obj client.Object,
+				patch client.Patch, opts ...client.SubResourcePatchOption,
+			) error {
+				if _, ok := obj.(*configApi.PlatformModule); ok && blockCheckpoint.Load() {
+					checkpointFailed.Store(true)
+					return k8serr.NewServiceUnavailable("inventory write interrupted")
+				}
+				return cli.SubResource(subresource).Patch(ctx, obj, patch, opts...)
+			}
+		})
+	g.Eventually(checkpointFailed.Load).WithTimeout(10 * time.Second).Should(BeTrue())
+	g.Expect(k8serr.IsNotFound(cli.Get(ctx, operatorKey, &corev1.ConfigMap{}))).To(BeTrue(), "apply must wait for the checkpoint")
+
+	blockCheckpoint.Store(false)
+	g.Eventually(statusFailed.Load).WithTimeout(15 * time.Second).Should(BeTrue())
+	g.Expect(cli.Get(ctx, operatorKey, &corev1.ConfigMap{})).To(Succeed())
+	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(pm), pm)).To(Succeed())
+	g.Expect(pm.Status.Release.Version.String()).NotTo(Equal("2.0.0"))
+	g.Expect(pm.Status.Resources).To(ContainElement(configApi.ResourceRef{
+		Version: "v1", Kind: gvk.ConfigMap.Kind, Namespace: namespace, Name: operatorKey.Name,
+	}))
+	stop()
+
+	smallerRoot := t.TempDir()
+	g.Expect(os.Mkdir(filepath.Join(smallerRoot, "completion"), 0o750)).To(Succeed())
+	smaller, err := os.OpenRoot(filepath.Join(smallerRoot, "completion"))
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { g.Expect(smaller.Close()).To(Succeed()) })
+	for _, name := range []string{"kustomization.yaml", "operator.yaml"} {
+		data, err := os.ReadFile(filepath.Join(manifestsRoot, "completion", name))
+		g.Expect(err).NotTo(HaveOccurred())
+		if name == "operator.yaml" {
+			_, remaining, found := strings.Cut(string(data), "---\n")
+			g.Expect(found).To(BeTrue())
+			data = []byte(remaining)
+		}
+		g.Expect(smaller.WriteFile(name, data, 0o600)).To(Succeed())
+	}
+	blockStatus.Store(false)
+	startPlatformModuleController(t, et, smallerRoot, &blockStatus, &statusFailed, false)
+	g.Eventually(func(g Gomega) {
+		g.Expect(k8serr.IsNotFound(cli.Get(ctx, operatorKey, &corev1.ConfigMap{}))).To(BeTrue())
+		g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(pm), pm)).To(Succeed())
+		g.Expect(pm.Status.Release.Version.String()).To(Equal("2.0.0"))
+	}).WithTimeout(45 * time.Second).Should(Succeed())
+}
+
+func TestPlatformModuleRetriesStaleRenderFailureWithoutLosingInventory(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+	const namespace = "stale-cache"
+	et := newPlatformModuleTestEnv(t, namespace, "2.0.0", true)
+	cli := et.Client()
+	registerTestModule(t, et)
+	pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "testmod", Finalizers: []string{frameworkreconciler.DefaultFinalizerName}}}
+	g.Expect(cli.Create(ctx, pm)).To(Succeed())
+	previousRef := configApi.ResourceRef{Version: "v1", Kind: gvk.ConfigMap.Kind, Namespace: namespace, Name: "previous"}
+	pm.Status.Resources = []configApi.ResourceRef{previousRef}
+	g.Expect(cli.Status().Update(ctx, pm)).To(Succeed())
+	old := pm.DeepCopy()
+	// Model a successful checkpoint that the first cached read has yet to see.
+	ref := configApi.ResourceRef{Version: "v1", Kind: gvk.ConfigMap.Kind, Namespace: namespace, Name: "applied"}
+	pm.Status.Resources = append(pm.Status.Resources, ref)
+	pm.Status.Release = testRelease("1.0.0")
+	pm.Status.ObservedGeneration = pm.Generation
+	g.Expect(cli.Status().Update(ctx, pm)).To(Succeed())
+
+	var blockStatus, statusFailed, returnedStale atomic.Bool
+	oldObject, err := runtime.DefaultUnstructuredConverter.ToUnstructured(old)
+	g.Expect(err).NotTo(HaveOccurred())
+	startPlatformModuleController(t, et, t.TempDir(), &blockStatus, &statusFailed, false, func(faults *interceptor.Funcs) {
+		faults.Get = func(ctx context.Context, cli client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if tracker, ok := obj.(*unstructured.Unstructured); ok && tracker.GroupVersionKind() == gvk.PlatformModule &&
+				key.Name == old.Name && returnedStale.CompareAndSwap(false, true) {
+				gvk := tracker.GroupVersionKind()
+				tracker.SetUnstructuredContent(runtime.DeepCopyJSON(oldObject))
+				tracker.SetGroupVersionKind(gvk)
+				return nil
+			}
+			return cli.Get(ctx, key, obj, opts...)
+		}
+	})
+	g.Eventually(func(g Gomega) {
+		g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(pm), pm)).To(Succeed())
+		g.Expect(conditions.FindStatusCondition(pm, status.ConditionTypeProvisioningSucceeded)).To(HaveValue(
+			HaveField("Status", metav1.ConditionFalse),
+		))
+	}).WithTimeout(15 * time.Second).Should(Succeed())
+	g.Expect(returnedStale.Load()).To(BeTrue())
+	g.Expect(pm.Status.Resources).To(ConsistOf(previousRef, ref))
+	g.Expect(pm.Status.Release.Version.String()).To(Equal("1.0.0"))
+	g.Expect(pm.Status.ObservedGeneration).To(Equal(pm.Generation))
+}
+
 // TestPlatformModuleControllerLifecycle covers upgrade, removal, and re-enable through API events.
 func TestPlatformModuleControllerLifecycle(t *testing.T) {
 	t.Run("removal", func(t *testing.T) { testPlatformModuleControllerLifecycle(t, false, "platform") })
@@ -433,30 +579,31 @@ func testPlatformModuleControllerLifecycle(t *testing.T, reenable bool, previous
 		g.Expect(conditions.FindStatusCondition(pm, status.ConditionTypeReady).Status).To(Equal(metav1.ConditionFalse))
 	}).WithTimeout(20 * time.Second).Should(Succeed())
 	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(pm), pm)).To(Succeed())
-	g.Expect(pm.Status.Resources).To(Equal(previous.Status.Resources))
-	g.Expect(pm.Status.Release).To(Equal(previous.Status.Release))
-
-	// Restart while cleanup is pending.
-	stopController()
-	startPlatformModuleController(t, et, manifestsRoot, &blockStatus, &statusFailed, false)
-
-	// Keep the previous release and inventory when the status write fails.
-	blockStatus.Store(true)
-	stale.Finalizers = nil
-	g.Expect(cli.Update(ctx, stale)).To(Succeed())
-	g.Eventually(statusFailed.Load).WithTimeout(20 * time.Second).Should(BeTrue())
-	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(pm), pm)).To(Succeed())
-	g.Expect(pm.Status.Resources).To(Equal(previous.Status.Resources))
-	g.Expect(pm.Status.Release).To(Equal(previous.Status.Release))
-
-	// Publish the new release and inventory together on retry.
-	blockStatus.Store(false)
 	inventory := []configApi.ResourceRef{
 		{Version: "v1", Kind: gvk.ConfigMap.Kind, Namespace: namespace, Name: PlatformConfigName(pm.Name)},
 		{Version: "v1", Kind: gvk.ConfigMap.Kind, Namespace: namespace, Name: operatorKey.Name},
 		{Group: gvk.Lease.Group, Version: "v1", Kind: gvk.Lease.Kind, Namespace: namespace, Name: "operator-lock"},
 		{Group: gvk.Deployment.Group, Version: "v1", Kind: gvk.Deployment.Kind, Namespace: namespace, Name: "operator"},
 	}
+	checkpoint := slices.Concat(previous.Status.Resources, inventory)
+	g.Expect(pm.Status.Resources).To(ConsistOf(checkpoint))
+	g.Expect(pm.Status.Release).To(Equal(previous.Status.Release))
+
+	// Restart while cleanup is pending.
+	stopController()
+	startPlatformModuleController(t, et, manifestsRoot, &blockStatus, &statusFailed, false)
+
+	// Keep the previous release and full checkpoint when the status write fails.
+	blockStatus.Store(true)
+	stale.Finalizers = nil
+	g.Expect(cli.Update(ctx, stale)).To(Succeed())
+	g.Eventually(statusFailed.Load).WithTimeout(20 * time.Second).Should(BeTrue())
+	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(pm), pm)).To(Succeed())
+	g.Expect(pm.Status.Resources).To(ConsistOf(checkpoint))
+	g.Expect(pm.Status.Release).To(Equal(previous.Status.Release))
+
+	// Publish the new release and inventory together on retry.
+	blockStatus.Store(false)
 	g.Eventually(func(g Gomega) {
 		g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(pm), pm)).To(Succeed())
 		g.Expect(pm.Status.Release).To(Equal(release))
@@ -508,12 +655,12 @@ func testPlatformModuleControllerLifecycle(t *testing.T, reenable bool, previous
 	// Complete this module's rollout while another module remains unready.
 	deployment := &appsv1.Deployment{}
 	g.Expect(cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: "operator"}, deployment)).To(Succeed())
-	const moduleNameLabel = "platform.opendatahub.io/module"
-	g.Expect(deployment.Labels).To(HaveKeyWithValue(moduleNameLabel, pm.Name))
+	// An extra Deployment outside this module's inventory must not affect
+	// its availability. It shares the operator's labels and never reports a
+	// rollout: only the inventory-based check can ignore it.
 	g.Expect(cli.Create(ctx, &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "other-operator", Namespace: namespace,
-			Labels: map[string]string{moduleNameLabel: "other-module", "platform.opendatahub.io/part-of": "platformmodule"},
+			Name: "other-operator", Namespace: namespace, Labels: maps.Clone(deployment.Labels),
 		},
 		Spec: *deployment.Spec.DeepCopy(),
 	})).To(Succeed())

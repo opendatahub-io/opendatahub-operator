@@ -6,7 +6,7 @@
 
 This document defines the testing strategy for the Platform controller and module handlers (`internal/controller/modules/`), the PlatformModule controller (`internal/controller/platformmodules/`), and the reconciliation utilities in `pkg/controller/`.
 
-Platform creates and removes trackers, coordinates the unified DAG, and aggregates tracker status. PlatformModule renders and deploys module operators, watches module CR readiness, and performs inventory-based cleanup. On OpenShift, DSC/DSCI controllers retain ownership of module CRs; on xKS, users or GitOps manage their lifecycle. See the [tracker lifecycle design](platformmodule-tracker-design.md) for these boundaries.
+Platform creates and removes trackers, coordinates the unified DAG, and aggregates tracker status. PlatformModule renders and deploys module operators, watches module CR readiness, and performs inventory-based cleanup. On OpenShift, DSC/DSCI controllers retain ownership of module CRs; on xKS, users or GitOps manage their lifecycle. See [PlatformModule ownership and cleanup](../internal/controller/modules/README.md#ownership-and-cleanup) for these boundaries.
 
 Shared reconciliation primitives are partly implemented in this repository and partly delegated to the versioned `github.com/opendatahub-io/odh-platform-utilities/framework` dependency declared in [go.mod](../go.mod). Local tests validate the operator's integration with that framework.
 

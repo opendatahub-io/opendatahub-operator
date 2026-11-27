@@ -27,7 +27,7 @@ func coordinateDAG(ctx context.Context, rr *odhtype.ReconciliationRequest) error
 
 	checker := provision.NewCompositeChecker(
 		cr.NewReadinessChecker(cr.DefaultRegistry(), rr.Client, targetVersion),
-		NewReadinessChecker(DefaultRegistry(), rr.Client, &platform.Spec.Modules, targetVersion),
+		NewReadinessChecker(DefaultRegistry(), rr.Client, platform, targetVersion),
 	)
 	instanceID := string(platform.GetUID())
 

@@ -6,6 +6,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -48,6 +50,25 @@ func TestPlatformDAGAdvanceRequestsStartsOnlyFirstRunlevelForNewRelease(t *testi
 	requests := platformDAGAdvanceRequests(oldPlatform, newPlatform)
 	g.Expect(requests).To(HaveLen(1))
 	g.Expect(requests[0].Name).To(Equal("rl20"))
+}
+
+func TestPlatformDAGAdvanceRequestsWakesAllClearedBatchesForNewRelease(t *testing.T) {
+	g := NewWithT(t)
+	withCleanRegistries(t)
+
+	addRunlevelModule("rl20", 20)
+	addRunlevelModule("rl31", 31)
+
+	oldPlatform := platformWithDAG(31)
+	newPlatform := oldPlatform.DeepCopy()
+	newPlatform.Status.DAG.Release = testRelease("2.0.0")
+	newPlatform.Status.DAG.ClearedRunlevel = 31
+
+	requests := platformDAGAdvanceRequests(oldPlatform, newPlatform)
+	g.Expect(requests).To(ConsistOf(
+		reconcile.Request{NamespacedName: client.ObjectKey{Name: "rl20"}},
+		reconcile.Request{NamespacedName: client.ObjectKey{Name: "rl31"}},
+	))
 }
 
 func TestPlatformDAGAdvanceRequestsSupportsRunlevelZero(t *testing.T) {

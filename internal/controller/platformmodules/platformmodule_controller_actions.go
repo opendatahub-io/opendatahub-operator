@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	appsv1 "k8s.io/api/apps/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,17 +26,17 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
-const platformModuleNameLabel = labels.ODHPlatformPrefix + "/module"
+const (
+	inventoryCheckpointKey = "odh.io/platformmodule-inventory-checkpoint"
+)
 
 // buildModulePlatformContext constructs a modules.PlatformContext scoped to
 // a single PlatformModule reconcile. Unlike the Platform controller's own
@@ -265,21 +266,9 @@ func handlePlatformModuleDeletion(ctx context.Context, rr *odhtype.Reconciliatio
 	return deletePlatformModuleResources(ctx, rr.Client, pm, pm.Status.Resources)
 }
 
-// cleanupStalePlatformModuleResources removes resources present in the last
-// successful inventory but absent from the newly deployed desired inventory.
-// Status replacement runs only after this action succeeds, preserving the old
-// inventory for retry when cleanup fails.
-func cleanupStalePlatformModuleResources(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	if rr.SkipDeploy {
-		return nil
-	}
-
-	pm, ok := rr.Instance.(*configApi.PlatformModule)
-	if !ok {
-		return fmt.Errorf("cleanupStalePlatformModuleResources requires PlatformModule instance, got %T", rr.Instance)
-	}
-
-	desired := resourceRefs(rr.Resources)
+// cleanupStalePlatformModuleResources compares the checkpoint with the newly
+// applied resources. The checkpoint includes interrupted deployment attempts.
+func cleanupStalePlatformModuleResources(ctx context.Context, cli client.Client, pm *configApi.PlatformModule, desired []configApi.ResourceRef) error {
 	desiredSet := make(map[platformModuleResourceKey]struct{}, len(desired))
 	for _, ref := range desired {
 		desiredSet[resourceKey(ref)] = struct{}{}
@@ -292,7 +281,7 @@ func cleanupStalePlatformModuleResources(ctx context.Context, rr *odhtype.Reconc
 		}
 	}
 
-	return deletePlatformModuleResources(ctx, rr.Client, pm, stale)
+	return deletePlatformModuleResources(ctx, cli, pm, stale)
 }
 
 type platformModuleResourceKey struct {
@@ -347,6 +336,54 @@ func resourceRefs(objects []unstructured.Unstructured) []configApi.ResourceRef {
 	return refs
 }
 
+// getPlatformModuleResource resolves a tracked inventory reference to a live
+// object. A recorded API version can stop being served (e.g. after a CRD
+// storage migration); the same GroupKind, namespace and name identifies the
+// same object regardless of version, so the kind is re-resolved through the
+// REST mapper, which only knows served versions. A nil object without error
+// means the object (or its whole kind) is gone.
+func getPlatformModuleResource(ctx context.Context, cli client.Client, ref configApi.ResourceRef) (*unstructured.Unstructured, error) {
+	key := client.ObjectKey{Name: ref.Name, Namespace: ref.Namespace}
+	recordedGVK := ref.GroupVersionKind()
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(recordedGVK)
+	err := cli.Get(ctx, key, obj)
+	if err == nil {
+		return obj, nil
+	}
+	if !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err) {
+		return nil, err
+	}
+	// NoMatch means the whole kind is gone; any other mapping failure must
+	// surface instead of being mistaken for absence.
+	mappings, mapErr := cli.RESTMapper().RESTMappings(recordedGVK.GroupKind())
+	if meta.IsNoMatchError(mapErr) {
+		return nil, nil
+	}
+	if mapErr != nil {
+		return nil, mapErr
+	}
+	for _, mapping := range mappings {
+		if mapping.GroupVersionKind == recordedGVK {
+			continue
+		}
+		served := &unstructured.Unstructured{}
+		served.SetGroupVersionKind(mapping.GroupVersionKind)
+		switch servedErr := cli.Get(ctx, key, served); {
+		case servedErr == nil:
+			return served, nil
+		case k8serr.IsNotFound(servedErr), meta.IsNoMatchError(servedErr):
+			continue
+		default:
+			// A failed read must not be mistaken for absence.
+			return nil, servedErr
+		}
+	}
+	return nil, nil
+}
+
+// deletePlatformModuleResources deletes the given tracker-owned resources,
+// retaining user-managed and protected ones.
 func deletePlatformModuleResources(
 	ctx context.Context,
 	cli client.Client,
@@ -356,27 +393,29 @@ func deletePlatformModuleResources(
 	var errs *multierror.Error
 	var pending []string
 	for _, ref := range slices.Backward(refs) {
-		obj := &unstructured.Unstructured{}
-		obj.SetGroupVersionKind(ref.GroupVersionKind())
-		err := cli.Get(ctx, client.ObjectKey{Name: ref.Name, Namespace: ref.Namespace}, obj)
+		obj, err := getPlatformModuleResource(ctx, cli, ref)
 		switch {
-		case k8serr.IsNotFound(err), meta.IsNoMatchError(err):
-			continue
 		case err != nil:
 			errs = multierror.Append(errs, fmt.Errorf("getting %s %s/%s before deletion: %w", ref.Kind, ref.Namespace, ref.Name, err))
 			continue
-		}
-
-		if !isCurrentModuleController(metav1.GetControllerOf(obj), pm) {
+		case obj == nil:
 			continue
 		}
 
 		if isUnremovablePlatformModuleResource(ref) || obj.GetAnnotations()[annotations.ManagedByODHOperator] == "false" {
-			// Retained resources must also survive Kubernetes garbage collection.
+			// Retained resources must also survive Kubernetes garbage
+			// collection. This must not depend on the controller-owner check
+			// below: a user-managed object can carry a stale tracker owner
+			// reference after controller ownership moved on, and only the
+			// current tracker's references are ever detached.
 			err := resources.RemoveOwnerReferences(ctx, cli, obj, func(ref metav1.OwnerReference) bool { return ref.UID == pm.GetUID() })
 			if err != nil && !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err) {
 				errs = multierror.Append(errs, err)
 			}
+			continue
+		}
+
+		if !isCurrentModuleController(metav1.GetControllerOf(obj), pm) {
 			continue
 		}
 
@@ -437,7 +476,16 @@ func updatePlatformModuleStatus(ctx context.Context, rr *odhtype.ReconciliationR
 		return fmt.Errorf("no module handler registered for %q", pm.GetName())
 	}
 	defer updateModuleCRCondition(ctx, rr, handler)
-	defer updateOperatorDeploymentCondition(ctx, rr, pm)
+	defer func() {
+		// While the runlevel gate is closed, availability must reflect the
+		// last committed Deployment set. An interrupted release attempt
+		// leaves its desired set merged into the inventory union; counting
+		// those pending Deployments would mark the running operator unhealthy.
+		if rr.SkipDeploy && (pm.Status.Release.Version.String() != rr.Release.Version.String() || pm.Status.Release.Name != rr.Release.Name) {
+			return
+		}
+		updateOperatorDeploymentCondition(ctx, rr, pm)
+	}()
 
 	if rr.SkipDeploy {
 		// The runlevel gate already scheduled a retry. Waiting must not mark a
@@ -445,7 +493,8 @@ func updatePlatformModuleStatus(ctx context.Context, rr *odhtype.ReconciliationR
 		return nil
 	}
 
-	if err := cleanupStalePlatformModuleResources(ctx, rr); err != nil {
+	desired := resourceRefs(rr.Resources)
+	if err := cleanupStalePlatformModuleResources(ctx, rr.Client, pm, desired); err != nil {
 		if pending, ok := errors.AsType[odherrors.RequeueAfterError](err); ok {
 			// Convert only on apply: finalizers must retain the shared deletion error.
 			// Do not wrap the requeue marker; the framework would continue past it.
@@ -455,42 +504,113 @@ func updatePlatformModuleStatus(ctx context.Context, rr *odhtype.ReconciliationR
 		return err
 	}
 
-	pm.Status.Resources = resourceRefs(rr.Resources)
+	pm.Status.Resources = desired
 	pm.Status.Release = rr.Release
 	return nil
 }
 
-// TODO: configure the label in the deploy action once supported by the framework
-// labelOperatorDeployments scopes the shared availability check to this module.
-func labelOperatorDeployments(_ context.Context, rr *odhtype.ReconciliationRequest) error {
-	for i := range rr.Resources {
-		if isDeployment(&rr.Resources[i]) {
-			resources.SetLabel(&rr.Resources[i], platformModuleNameLabel, rr.Instance.GetName())
+// recordIntendedInventory persists the union before applying any resources,
+// so cleanup can recover an interrupted deployment even if its final status
+// write never succeeds.
+func recordIntendedInventory(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	if rr.SkipDeploy {
+		// Deployment deferred (e.g. runlevel gate): resources may not be
+		// rendered; keep the last recorded inventory.
+		return nil
+	}
+	pm, ok := rr.Instance.(*configApi.PlatformModule)
+	if !ok {
+		return fmt.Errorf("recordIntendedInventory requires PlatformModule instance, got %T", rr.Instance)
+	}
+
+	checkpoint := pm.DeepCopy()
+	recorded := make(map[platformModuleResourceKey]struct{}, len(pm.Status.Resources))
+	for _, ref := range pm.Status.Resources {
+		recorded[resourceKey(ref)] = struct{}{}
+	}
+	for _, ref := range resourceRefs(rr.Resources) {
+		if _, found := recorded[resourceKey(ref)]; !found {
+			checkpoint.Status.Resources = append(checkpoint.Status.Resources, ref)
 		}
+	}
+	if err := patchTrackerStatus(ctx, rr.Client, pm, checkpoint); err != nil {
+		return fmt.Errorf("recording inventory for PlatformModule %s: %w", pm.Name, err)
+	}
+	pm.Status.Resources = checkpoint.Status.Resources
+	pm.ResourceVersion = checkpoint.ResourceVersion
+	if rr.Extensions == nil {
+		rr.Extensions = make(map[string]any)
+	}
+	rr.Extensions[inventoryCheckpointKey] = true
+	return nil
+}
+
+func patchTrackerStatus(ctx context.Context, cli client.Client, before, after *configApi.PlatformModule) error {
+	return cli.Status().Patch(ctx, after, client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{}))
+}
+
+// The framework force-applies the whole status, even after an action fails or
+// status appears unchanged in the cache. That write omits resourceVersion, so
+// a stale snapshot can overwrite newer inventory or release. A successful
+// checkpoint already validates the version.
+func protectPlatformModuleInventory(ctx context.Context, rr *odhtype.ReconciliationRequest, _ bool) error {
+	if rr.Extensions[inventoryCheckpointKey] == true {
+		return nil
+	}
+	pm, ok := rr.Instance.(*configApi.PlatformModule)
+	if !ok {
+		return fmt.Errorf("protectPlatformModuleInventory requires PlatformModule instance, got %T", rr.Instance)
+	}
+	// resourceVersion covers the whole object. A metadata-only change, such
+	// as an updated owner reference, can conflict even when status is identical.
+	// Retry from the cache before publishing status.
+	if err := patchTrackerStatus(ctx, rr.Client, pm, pm.DeepCopy()); err != nil {
+		return fmt.Errorf("checking status version for PlatformModule %s: %w", pm.Name, err)
 	}
 	return nil
 }
 
+// updateOperatorDeploymentCondition checks each Deployment recorded in the
+// tracker inventory by exact reference: only the operator that should be
+// installed counts, and a missing or unavailable inventoried Deployment
+// blocks readiness.
 func updateOperatorDeploymentCondition(ctx context.Context, rr *odhtype.ReconciliationRequest, pm *configApi.PlatformModule) {
-	hasDeployments := slices.ContainsFunc(pm.Status.Resources, func(ref configApi.ResourceRef) bool {
-		return ref.GroupVersionKind() == gvk.Deployment
-	})
-	if !hasDeployments {
+	var refs []configApi.ResourceRef
+	for _, ref := range pm.Status.Resources {
+		if ref.GroupVersionKind() == gvk.Deployment {
+			refs = append(refs, ref)
+		}
+	}
+	if len(refs) == 0 {
 		rr.Conditions.MarkTrue(status.ConditionDeploymentsAvailable)
 		return
 	}
 
-	check := deployments.NewAction(
-		deployments.InNamespace(metav1.NamespaceAll),
-		deployments.WithoutAutomaticPartOfDefault(),
-		deployments.WithSelectorLabel(platformModuleNameLabel, pm.Name),
-	)
-	if err := check(ctx, rr); err != nil {
-		rr.Conditions.MarkUnknown(status.ConditionDeploymentsAvailable,
-			conditions.WithReason(status.ConditionDeploymentsNotAvailableReason),
-			conditions.WithMessage(err.Error()),
-		)
+	ready := 0
+	for _, ref := range refs {
+		deployment := &appsv1.Deployment{}
+		switch err := rr.Client.Get(ctx, client.ObjectKey{Namespace: ref.Namespace, Name: ref.Name}, deployment); {
+		case k8serr.IsNotFound(err), meta.IsNoMatchError(err):
+			continue
+		case err != nil:
+			rr.Conditions.MarkUnknown(status.ConditionDeploymentsAvailable,
+				conditions.WithReason(status.ConditionDeploymentsNotAvailableReason),
+				conditions.WithMessage(err.Error()),
+			)
+			return
+		}
+		if deployment.Status.ReadyReplicas == deployment.Status.Replicas && deployment.Status.Replicas != 0 {
+			ready++
+		}
 	}
+	if ready != len(refs) {
+		rr.Conditions.MarkFalse(status.ConditionDeploymentsAvailable,
+			conditions.WithReason(status.ConditionDeploymentsNotAvailableReason),
+			conditions.WithMessagef("%d/%d deployments ready", ready, len(refs)),
+		)
+		return
+	}
+	rr.Conditions.MarkTrue(status.ConditionDeploymentsAvailable)
 }
 
 func updateModuleCRCondition(ctx context.Context, rr *odhtype.ReconciliationRequest, handler modules.ModuleHandler) {
@@ -522,9 +642,9 @@ func updateModuleCRCondition(ctx context.Context, rr *odhtype.ReconciliationRequ
 		}
 	}
 
-	crState, _ := handler.GetModuleCRState(ctx, rr.Client)
+	// Lifecycle state comes from the same snapshot as the conditions (CWE-367).
 	switch {
-	case crState == modules.CRStateDeleting:
+	case moduleStatus.Deleting:
 		rr.Conditions.MarkFalse(status.ConditionTypeModuleCRReady,
 			conditions.WithReason(status.DeletingReason),
 			conditions.WithMessage(status.DeletingMessage),
@@ -546,6 +666,13 @@ func updateModuleCRCondition(ctx context.Context, rr *odhtype.ReconciliationRequ
 
 // checkModuleUpgradeGates enforces the shared gate barrier just before deploy,
 // including for existing trackers when runlevel ordering is disabled.
+//
+// Discovery failures of sibling modules are deliberately ignored here: the
+// barrier applies only to discovered gates, matching the policy documented on
+// checkPlatformModuleUpgradeGates — a broken module must not hide healthy
+// siblings' gates or block their trackers. The affected module itself cannot
+// pass on a partial map: its own gates are extracted from its own render,
+// which runs earlier in the chain and fails the reconcile on error.
 func checkModuleUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	if rr.SkipDeploy {
 		return nil

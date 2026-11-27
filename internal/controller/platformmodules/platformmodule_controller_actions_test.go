@@ -4,6 +4,7 @@ package platformmodules
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,9 +18,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	clientFake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -142,6 +145,38 @@ func TestUpdatePlatformModuleStatusSkipsDeferredDeployment(t *testing.T) {
 	g.Expect(moduleCRReady.Status).To(Equal(metav1.ConditionTrue))
 	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(stale), stale)).To(Succeed())
 	g.Expect(stale.DeletionTimestamp.IsZero()).To(BeTrue(), "deferred deployment must not start cleanup")
+}
+
+func TestUpdatePlatformModuleStatusKeepsCommittedAvailabilityWhileGated(t *testing.T) {
+	g := NewWithT(t)
+	withCleanRegistries(t)
+	modules.Add(&stubModuleHandler{
+		BaseHandler:  modules.BaseHandler{Config: modules.ModuleConfig{Name: "testmod"}},
+		moduleStatus: &modules.ModuleStatus{},
+	})
+	cli, err := fakeclient.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "testmod"}}
+	// The committed release is old; the inventory union carries a Deployment
+	// from a failed attempt at the new release that never rolled out.
+	pm.Status.Release = testRelease("1.0.0")
+	pm.Status.Resources = []configApi.ResourceRef{{
+		Group: "apps", Version: "v1", Kind: "Deployment", Namespace: "apps", Name: "operator-b",
+	}}
+	pm.SetConditions([]common.Condition{{Type: status.ConditionDeploymentsAvailable, Status: metav1.ConditionTrue}})
+	rr := &odhtype.ReconciliationRequest{
+		Client:   cli,
+		Instance: pm,
+		Release:  testRelease("2.0.0"),
+		Conditions: conditionstest.NewManager(pm, status.ConditionTypeReady, status.ConditionTypeProvisioningSucceeded,
+			status.ConditionTypeModuleCRReady, status.ConditionDeploymentsAvailable),
+	}
+	rr.SkipDeploy = true
+	g.Expect(updatePlatformModuleStatus(t.Context(), rr)).To(Succeed())
+	condition := conditions.FindStatusCondition(pm, status.ConditionDeploymentsAvailable)
+	g.Expect(condition).ToNot(BeNil())
+	g.Expect(condition.Status).To(Equal(metav1.ConditionTrue),
+		"a pending Deployment from a failed release must not mark the running operator unhealthy")
 }
 
 func TestHandlePlatformModuleDeletionModuleCRState(t *testing.T) {
@@ -285,6 +320,9 @@ func TestHandlePlatformModuleDeletion_MissingHandlerRetainsFinalizer(t *testing.
 		Instance: pm,
 	})
 	g.Expect(err).To(MatchError(ContainSubstring("cannot establish module CR absence")))
+	var stop odherrors.StopError
+	g.Expect(errors.As(err, &stop)).To(BeFalse(),
+		"the finalizer must retain the shared deletion error instead of stopping reconciliation")
 	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(resource), resource)).To(Succeed())
 	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(pm), pm)).To(Succeed())
 	g.Expect(pm.Finalizers).To(Equal(before.Finalizers))
@@ -312,9 +350,6 @@ func TestCleanupStalePlatformModuleResourcesSafeInventoryDiff(t *testing.T) {
 
 	s, err := testscheme.New()
 	g.Expect(err).ToNot(HaveOccurred())
-	cli, err := fakeclient.New(fakeclient.WithScheme(s), fakeclient.WithObjects(ownedStale, externalStale, desired))
-	g.Expect(err).ToNot(HaveOccurred())
-
 	pm := &configApi.PlatformModule{
 		ObjectMeta: metav1.ObjectMeta{Name: "testmod", UID: trackerUID},
 		Status: configApi.PlatformModuleStatus{Resources: []configApi.ResourceRef{
@@ -329,6 +364,18 @@ func TestCleanupStalePlatformModuleResourcesSafeInventoryDiff(t *testing.T) {
 			{Group: "missing.example.io", Version: "v1", Kind: "Missing", Name: "gone"},
 		}},
 	}
+	var desiredGets []string
+	cli, err := fakeclient.New(fakeclient.WithScheme(s), fakeclient.WithObjects(ownedStale, externalStale, desired, pm),
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, cli client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if key.Namespace == "test" && key.Name == "desired" {
+					desiredGets = append(desiredGets, key.String())
+				}
+				return cli.Get(ctx, key, obj, opts...)
+			},
+		}))
+	g.Expect(err).ToNot(HaveOccurred())
+
 	desiredUnstructured := &unstructured.Unstructured{}
 	desiredUnstructured.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind(gvk.ConfigMap.Kind))
 	desiredUnstructured.SetNamespace("test")
@@ -336,13 +383,19 @@ func TestCleanupStalePlatformModuleResourcesSafeInventoryDiff(t *testing.T) {
 
 	rr := &odhtype.ReconciliationRequest{Client: cli, Instance: pm, Resources: []unstructured.Unstructured{*desiredUnstructured}}
 	var pending odherrors.RequeueAfterError
-	g.Expect(errors.As(cleanupStalePlatformModuleResources(context.Background(), rr), &pending)).To(BeTrue())
-	g.Expect(cleanupStalePlatformModuleResources(context.Background(), rr)).To(Succeed())
+	err = cleanupStalePlatformModuleResources(context.Background(), rr.Client, pm, resourceRefs(rr.Resources))
+	g.Expect(errors.As(err, &pending)).To(BeTrue())
+	g.Expect(cleanupStalePlatformModuleResources(context.Background(), rr.Client, pm, resourceRefs(rr.Resources))).To(Succeed())
+	// Snapshot before the verification loop performs its own reads.
+	desiredGetsDuringCleanup := len(desiredGets)
 
 	for _, name := range []string{"desired", "external-stale"} {
 		g.Expect(cli.Get(context.Background(), client.ObjectKey{Namespace: "test", Name: name}, &corev1.ConfigMap{})).To(Succeed())
 	}
 	g.Expect(k8serr.IsNotFound(cli.Get(context.Background(), client.ObjectKey{Namespace: "test", Name: "owned-stale"}, &corev1.ConfigMap{}))).To(BeTrue())
+	// Cleanup must not touch desired resources: no Get for test/desired was
+	// issued while cleaning up stale inventory.
+	g.Expect(desiredGetsDuringCleanup).To(BeZero())
 }
 
 func TestDeletePlatformModuleResourcesUsesReverseOrder(t *testing.T) {
@@ -513,13 +566,163 @@ func TestCleanupProtectedResourcesDetachesTrackerOwner(t *testing.T) {
 	g.Expect(current.OwnerReferences).To(BeEmpty(), "a retained Lease must survive Kubernetes garbage collection after tracker deletion")
 }
 
+func TestCleanupRetainedResourcesDetachesStaleOwnerRegardlessOfController(t *testing.T) {
+	g := NewWithT(t)
+	pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "testmod", UID: "tracker-uid"}}
+	// Controller is a replacement tracker; a stale non-controller reference
+	// still points at the current tracker UID.
+	replacement := platformModuleOwner("replacement-uid")
+	stale := platformModuleOwner(pm.UID)
+	stale.Controller = nil
+	deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+		Name:            "operator",
+		Namespace:       "apps",
+		Annotations:     map[string]string{annotations.ManagedByODHOperator: "false"},
+		OwnerReferences: []metav1.OwnerReference{replacement, stale},
+	}}
+	cli, err := fakeclient.New(fakeclient.WithObjects(deployment))
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(deletePlatformModuleResources(t.Context(), cli, pm, []configApi.ResourceRef{{
+		Group: "apps", Version: "v1", Kind: "Deployment", Namespace: deployment.Namespace, Name: deployment.Name,
+	}})).To(Succeed())
+	current := &appsv1.Deployment{}
+	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(deployment), current)).To(Succeed())
+	g.Expect(current.OwnerReferences).To(ConsistOf(replacement),
+		"only the current tracker's references must be detached from a retained object")
+}
+
+// A reference recorded at a no-longer-served API version must still resolve
+// to the live object at a served version of the same kind.
+// A live resource must not be skipped because an alternate-version read
+// failed with a transient or authorization error (CWE-459).
+func TestDeletePlatformModuleResourcesPropagatesAlternateReadErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{name: "forbidden", err: k8serr.NewForbidden(schema.GroupResource{Group: "test.opendatahub.io", Resource: "testresources"}, "recorded", errors.New("denied"))},
+		{name: "transient", err: errors.New("connection refused")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "testmod", UID: "tracker-uid"}}
+			served := schema.GroupVersionKind{Group: "test.opendatahub.io", Version: "v1", Kind: "TestResource"}
+			unserved := schema.GroupVersionKind{Group: "test.opendatahub.io", Version: "v1beta1", Kind: "TestResource"}
+			obj := &unstructured.Unstructured{}
+			obj.SetGroupVersionKind(served)
+			obj.SetNamespace("apps")
+			obj.SetName("recorded")
+			obj.SetOwnerReferences([]metav1.OwnerReference{platformModuleOwner(pm.UID)})
+			s := runtime.NewScheme()
+			// Register the served version first: the fake mapper prefers the
+			// first observed version per group, mirroring discovery.
+			s.AddKnownTypeWithName(served, &unstructured.Unstructured{})
+			s.AddKnownTypeWithName(unserved, &unstructured.Unstructured{})
+			cli, err := fakeclient.New(fakeclient.WithScheme(s), fakeclient.WithObjects(obj), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, getObj client.Object, opts ...client.GetOption) error {
+					if getObj.GetObjectKind().GroupVersionKind().Version != served.Version {
+						// The recorded, no-longer-served version.
+						return k8serr.NewNotFound(schema.GroupResource{Group: "test.opendatahub.io", Resource: "testresources"}, key.Name)
+					}
+					return tc.err
+				},
+			}))
+			g.Expect(err).NotTo(HaveOccurred())
+
+			ref := configApi.ResourceRef{
+				Group: unserved.Group, Version: unserved.Version, Kind: unserved.Kind,
+				Namespace: obj.GetNamespace(), Name: obj.GetName(),
+			}
+			err = deletePlatformModuleResources(t.Context(), cli, pm, []configApi.ResourceRef{ref})
+			g.Expect(err).To(MatchError(ContainSubstring("before deletion")), "lookup failure must propagate, got: %v", err)
+			g.Expect(errors.Is(err, tc.err) || strings.Contains(err.Error(), tc.err.Error())).To(BeTrue(), "expected %v in: %v", tc.err, err)
+		})
+	}
+}
+
+func TestDeletePlatformModuleResourcesPropagatesMapperErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		err       error
+		wantError bool
+	}{
+		{name: "discovery unavailable", err: errors.New("discovery unavailable"), wantError: true},
+		{name: "kind gone", err: &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "test.opendatahub.io", Kind: "TestResource"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "testmod", UID: "tracker-uid"}}
+			unserved := schema.GroupVersionKind{Group: "test.opendatahub.io", Version: "v1beta1", Kind: "TestResource"}
+			s := runtime.NewScheme()
+			s.AddKnownTypeWithName(unserved, &unstructured.Unstructured{})
+			cli := clientFake.NewClientBuilder().
+				WithScheme(s).
+				WithRESTMapper(failingRESTMapper{err: tc.err}).
+				WithInterceptorFuncs(interceptor.Funcs{
+					Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+						return k8serr.NewNotFound(schema.GroupResource{Group: "test.opendatahub.io", Resource: "testresources"}, "recorded")
+					},
+				}).
+				Build()
+			ref := configApi.ResourceRef{Group: unserved.Group, Version: unserved.Version, Kind: unserved.Kind, Namespace: "apps", Name: "recorded"}
+			err := deletePlatformModuleResources(t.Context(), cli, pm, []configApi.ResourceRef{ref})
+			if tc.wantError {
+				g.Expect(err).To(MatchError(tc.err), "mapper failure must propagate")
+			} else {
+				g.Expect(err).To(Succeed(), "NoMatch means the kind is gone: treated as absent")
+			}
+		})
+	}
+}
+
+type failingRESTMapper struct {
+	meta.RESTMapper
+
+	err error
+}
+
+func (m failingRESTMapper) RESTMappings(schema.GroupKind, ...string) ([]*meta.RESTMapping, error) {
+	return nil, m.err
+}
+
+func TestDeletePlatformModuleResourcesResolvesServedVersion(t *testing.T) {
+	g := NewWithT(t)
+	pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "testmod", UID: "tracker-uid"}}
+	served := schema.GroupVersionKind{Group: "test.opendatahub.io", Version: "v1", Kind: "TestResource"}
+	unserved := schema.GroupVersionKind{Group: "test.opendatahub.io", Version: "v1beta1", Kind: "TestResource"}
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(served)
+	obj.SetNamespace("apps")
+	obj.SetName("recorded")
+	obj.SetOwnerReferences([]metav1.OwnerReference{platformModuleOwner(pm.UID)})
+	s := runtime.NewScheme()
+	// Register the served version first: the fake mapper prefers the first
+	// observed version per group, mirroring discovery-based preferred versions.
+	s.AddKnownTypeWithName(served, &unstructured.Unstructured{})
+	s.AddKnownTypeWithName(unserved, &unstructured.Unstructured{})
+	cli, err := fakeclient.New(fakeclient.WithScheme(s), fakeclient.WithObjects(obj))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	ref := configApi.ResourceRef{
+		Group: unserved.Group, Version: unserved.Version, Kind: unserved.Kind,
+		Namespace: obj.GetNamespace(), Name: obj.GetName(),
+	}
+	var pending odherrors.RequeueAfterError
+	err = deletePlatformModuleResources(t.Context(), cli, pm, []configApi.ResourceRef{ref})
+	g.Expect(errors.As(err, &pending)).To(BeTrue(), "resource must be selected for deletion, got: %v", err)
+	g.Expect(deletePlatformModuleResources(t.Context(), cli, pm, []configApi.ResourceRef{ref})).To(Succeed())
+	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(obj), obj)).To(HaveOccurred(),
+		"a resource recorded at a no-longer-served version must still be deleted")
+}
+
 func TestCleanupStaleResourcesPreservesConcurrentOwnershipChange(t *testing.T) {
 	g := NewWithT(t)
 	pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "testmod", UID: "tracker-uid"}}
 	stale := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
 		Name: "stale", Namespace: "apps", UID: "object-uid", OwnerReferences: []metav1.OwnerReference{platformModuleOwner(pm.UID)},
 	}}
-	cli, err := fakeclient.New(fakeclient.WithObjects(stale), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+	pm.Status.Resources = []configApi.ResourceRef{{Version: "v1", Kind: gvk.ConfigMap.Kind, Namespace: stale.Namespace, Name: stale.Name}}
+	cli, err := fakeclient.New(fakeclient.WithObjects(stale, pm), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 		Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
 			current := &corev1.ConfigMap{}
 			if err := c.Get(ctx, client.ObjectKeyFromObject(obj), current); err != nil {
@@ -533,14 +736,86 @@ func TestCleanupStaleResourcesPreservesConcurrentOwnershipChange(t *testing.T) {
 		},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
-	pm.Status.Resources = []configApi.ResourceRef{{Version: "v1", Kind: gvk.ConfigMap.Kind, Namespace: stale.Namespace, Name: stale.Name}}
 	wantInventory := append([]configApi.ResourceRef(nil), pm.Status.Resources...)
-	err = cleanupStalePlatformModuleResources(t.Context(), &odhtype.ReconciliationRequest{Client: cli, Instance: pm})
+	err = cleanupStalePlatformModuleResources(t.Context(), cli, pm, nil)
 	g.Expect(k8serr.IsConflict(err)).To(BeTrue(), "concurrent owner change must fail deletion: %v", err)
 	g.Expect(pm.Status.Resources).To(Equal(wantInventory))
 	current := &corev1.ConfigMap{}
 	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(stale), current)).To(Succeed())
 	g.Expect(metav1.GetControllerOf(current).UID).To(Equal(k8stypes.UID("new-owner")))
+}
+
+// Availability must track the Deployments recorded in the tracker inventory,
+// not every Deployment with the module label: only the operator that should
+// be installed counts.
+func TestOperatorDeploymentConditionChecksInventoriedDeployments(t *testing.T) {
+	g := NewWithT(t)
+	pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "testmod"}}
+	pm.Status.Resources = []configApi.ResourceRef{{
+		Group: "apps", Version: "v1", Kind: "Deployment", Namespace: "apps", Name: "operator",
+	}}
+	ready := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "operator", Namespace: "apps"}}
+	ready.Status.Replicas = 1
+	ready.Status.ReadyReplicas = 1
+	// Not in the inventory: an extra Deployment must not affect readiness.
+	extra := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "extra", Namespace: "apps"}}
+	extra.Status.Replicas = 0
+	cli, err := fakeclient.New(fakeclient.WithObjects(ready, extra))
+	g.Expect(err).NotTo(HaveOccurred())
+	rr := &odhtype.ReconciliationRequest{
+		Client: cli, Instance: pm,
+		Conditions: conditionstest.NewManager(pm, status.ConditionDeploymentsAvailable),
+	}
+	updateOperatorDeploymentCondition(t.Context(), rr, pm)
+	condition := conditions.FindStatusCondition(pm, status.ConditionDeploymentsAvailable)
+	g.Expect(condition).ToNot(BeNil())
+	g.Expect(condition.Status).To(Equal(metav1.ConditionTrue),
+		"a Deployment outside the inventory must not affect availability")
+}
+
+// A missing or unavailable inventoried Deployment must block readiness.
+func TestOperatorDeploymentConditionBlocksOnMissingInventoriedDeployment(t *testing.T) {
+	g := NewWithT(t)
+	pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "testmod"}}
+	pm.Status.Resources = []configApi.ResourceRef{{
+		Group: "apps", Version: "v1", Kind: "Deployment", Namespace: "apps", Name: "operator",
+	}}
+	cli, err := fakeclient.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	rr := &odhtype.ReconciliationRequest{
+		Client: cli, Instance: pm,
+		Conditions: conditionstest.NewManager(pm, status.ConditionDeploymentsAvailable),
+	}
+	updateOperatorDeploymentCondition(t.Context(), rr, pm)
+	condition := conditions.FindStatusCondition(pm, status.ConditionDeploymentsAvailable)
+	g.Expect(condition).ToNot(BeNil())
+	g.Expect(condition.Status).To(Equal(metav1.ConditionFalse),
+		"a missing inventoried Deployment must block availability")
+}
+
+// Lifecycle state must come from the same snapshot as the Ready condition
+// (CWE-367): a terminating CR must not publish ModuleCRReady=True.
+func TestModuleCRReadinessUsesSingleSnapshot(t *testing.T) {
+	g := NewWithT(t)
+	withCleanRegistries(t)
+	handler := &stubModuleHandler{BaseHandler: modules.BaseHandler{Config: modules.ModuleConfig{Name: "testmod"}}, moduleStatus: &modules.ModuleStatus{
+		Deleting:   true,
+		Generation: 2, ObservedGeneration: 2,
+		Conditions: []common.Condition{{Type: status.ConditionTypeReady, Status: metav1.ConditionTrue}},
+	}}
+	modules.Add(handler)
+	cli, err := fakeclient.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "testmod"}}
+	rr := &odhtype.ReconciliationRequest{
+		Client: cli, Instance: pm,
+		Conditions: conditionstest.NewManager(pm, status.ConditionTypeProvisioningSucceeded, status.ConditionTypeModuleCRReady),
+	}
+	updateModuleCRCondition(t.Context(), rr, handler)
+	ready := conditions.FindStatusCondition(pm, status.ConditionTypeModuleCRReady)
+	g.Expect(ready).NotTo(BeNil())
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(status.DeletingReason))
 }
 
 func TestModuleCRReadinessRejectsStaleGeneration(t *testing.T) {
@@ -594,12 +869,14 @@ func TestModuleCRReadinessRejectsDegradedOrDeletingModules(t *testing.T) {
 			pm, desired, stale := completionFixture(t)
 			handler, ok := modules.DefaultRegistry().Lookup("testmod").(*stubModuleHandler)
 			g.Expect(ok).To(BeTrue())
-			handler.crState = tc.state
+			if tc.name == "deleting" {
+				handler.moduleStatus.Deleting = true
+			}
 			if tc.name == "degraded" {
 				handler.moduleStatus.Conditions = append(handler.moduleStatus.Conditions,
 					common.Condition{Type: status.ConditionTypeDegraded, Status: metav1.ConditionTrue, Reason: tc.reason, Message: "runtime failed"})
 			}
-			cli, err := fakeclient.New(fakeclient.WithObjects(stale))
+			cli, err := fakeclient.New(fakeclient.WithObjects(stale, pm))
 			g.Expect(err).NotTo(HaveOccurred())
 			var pending odherrors.StopError
 			g.Expect(errors.As(updatePlatformModuleStatus(t.Context(), completionRequest(pm, cli, desired)), &pending)).To(BeTrue())
@@ -639,7 +916,7 @@ func TestCompletionChecksDeletionOnNextReconcile(t *testing.T) {
 	g := NewWithT(t)
 	pm, desired, stale := completionFixture(t)
 	reads := 0
-	cli, err := fakeclient.New(fakeclient.WithObjects(stale), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+	cli, err := fakeclient.New(fakeclient.WithObjects(stale, pm), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 			if key == client.ObjectKeyFromObject(stale) {
 				reads++
@@ -671,9 +948,12 @@ func TestCompletionSurvivesOperatorStatusReadError(t *testing.T) {
 	handler, ok := modules.DefaultRegistry().Lookup("testmod").(*stubModuleHandler)
 	g.Expect(ok).To(BeTrue())
 	handler.moduleStatus.Conditions[0].Status = metav1.ConditionFalse
-	cli, err := fakeclient.New(fakeclient.WithObjects(stale), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
-		List: func(context.Context, client.WithWatch, client.ObjectList, ...client.ListOption) error {
-			return errors.New("deployment status temporarily unavailable")
+	cli, err := fakeclient.New(fakeclient.WithObjects(stale, pm), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, isDeployment := obj.(*appsv1.Deployment); isDeployment {
+				return errors.New("deployment status temporarily unavailable")
+			}
+			return c.Get(ctx, key, obj, opts...)
 		},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
@@ -764,7 +1044,7 @@ func TestCompletionDoesNotDependOnXKSModuleCRReadiness(t *testing.T) {
 		BaseHandler:     modules.BaseHandler{Config: modules.ModuleConfig{Name: "testmod"}},
 		moduleStatusErr: k8serr.NewNotFound(schema.GroupResource{Group: "test.io", Resource: "modules"}, "missing"),
 	})
-	cli, err := fakeclient.New(fakeclient.WithObjects(&desired, stale))
+	cli, err := fakeclient.New(fakeclient.WithObjects(&desired, stale, pm))
 	g.Expect(err).NotTo(HaveOccurred())
 	rr := completionRequest(pm, cli, desired)
 	rr.Release.Name = cluster.XKS
@@ -779,7 +1059,7 @@ func TestCompletionDoesNotDependOnXKSModuleCRReadiness(t *testing.T) {
 func TestCompletionPreservesCommitOnLaterRuntimeFailure(t *testing.T) {
 	g := NewWithT(t)
 	pm, desired, stale := completionFixture(t)
-	cli, err := fakeclient.New(fakeclient.WithObjects(&desired, stale))
+	cli, err := fakeclient.New(fakeclient.WithObjects(&desired, stale, pm))
 	g.Expect(err).NotTo(HaveOccurred())
 	rr := completionRequest(pm, cli, desired)
 	var pending odherrors.StopError
@@ -793,4 +1073,101 @@ func TestCompletionPreservesCommitOnLaterRuntimeFailure(t *testing.T) {
 	g.Expect(pm.Status.Release).To(Equal(committed.Status.Release))
 	g.Expect(pm.Status.Resources).To(Equal(committed.Status.Resources))
 	g.Expect(conditions.FindStatusCondition(pm, status.ConditionTypeModuleCRReady).Status).To(Equal(metav1.ConditionFalse))
+}
+
+func TestRecordIntendedInventory(t *testing.T) {
+	g := NewWithT(t)
+	newResource := makeUnstructuredResource(gvk.ConfigMap.Kind, "", "new")
+
+	pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "testmod", UID: "tracker-uid"}}
+	// The instance starts each reconcile carrying the last persisted
+	// inventory; the pre-deploy write must merge into it, not replace it.
+	pm.Status.Resources = []configApi.ResourceRef{
+		{Version: "v1", Kind: gvk.ConfigMap.Kind, Namespace: "apps", Name: "old"},
+	}
+	cli, err := fakeclient.New(fakeclient.WithObjects(pm), fakeclient.WithStatusSubresources(pm))
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(pm), pm)).To(Succeed())
+	rr := &odhtype.ReconciliationRequest{Client: cli, Instance: pm, Resources: []unstructured.Unstructured{newResource}}
+	g.Expect(recordIntendedInventory(t.Context(), rr)).To(Succeed())
+	persisted := &configApi.PlatformModule{}
+	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(pm), persisted)).To(Succeed())
+	g.Expect(persisted.Status.Resources).To(HaveLen(2), "the cleanup inventory must already be durable before deploy")
+	g.Expect(pm.Status.Resources).To(ConsistOf(
+		configApi.ResourceRef{Version: "v1", Kind: gvk.ConfigMap.Kind, Namespace: "apps", Name: "old"},
+		configApi.ResourceRef{Version: "v1", Kind: gvk.ConfigMap.Kind, Namespace: "apps", Name: "new"},
+	), "previously recorded entries must survive so a failed deploy cannot orphan them")
+
+	// Re-recording the same desired set is idempotent.
+	g.Expect(recordIntendedInventory(t.Context(), rr)).To(Succeed())
+	g.Expect(pm.Status.Resources).To(HaveLen(2))
+
+	// A deferred deployment must keep the last recorded inventory: resources
+	// may not be rendered while the runlevel gate holds the module back.
+	rr.SkipDeploy = true
+	g.Expect(recordIntendedInventory(t.Context(), rr)).To(Succeed())
+	g.Expect(pm.Status.Resources).To(HaveLen(2))
+}
+
+func TestPendingCleanupKeepsCheckpointedInventory(t *testing.T) {
+	g := NewWithT(t)
+	pm, desired, stale := completionFixture(t)
+	stale.Finalizers = []string{"test.io/hold"}
+	cli, err := fakeclient.New(fakeclient.WithObjects(pm, stale, &desired), fakeclient.WithStatusSubresources(pm))
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(pm), pm)).To(Succeed())
+	rr := completionRequest(pm, cli, desired)
+	g.Expect(recordIntendedInventory(t.Context(), rr)).To(Succeed())
+
+	var pending odherrors.StopError
+	g.Expect(errors.As(updatePlatformModuleStatus(t.Context(), rr), &pending)).To(BeTrue())
+	g.Expect(pm.Status.Resources).To(ConsistOf(
+		configApi.ResourceRef{Version: "v1", Kind: gvk.ConfigMap.Kind, Namespace: "apps", Name: "stale"},
+		configApi.ResourceRef{Group: "apps", Version: "v1", Kind: gvk.Deployment.Kind, Namespace: "apps", Name: "operator"},
+	))
+	g.Expect(pm.Status.Release.Version.String()).To(Equal("1.0.0"))
+}
+
+func TestCleanupCollectsCommittedAndInterruptedInventories(t *testing.T) {
+	// A deploy failed after the pre-deploy merge was persisted: the recorded
+	// inventory holds both the previous commit ("old", no longer desired)
+	// and the interrupted attempt's intended set ("leftover", applied but
+	// dropped from the next render). The next successful deploy must clean
+	// both — neither may be orphaned by the inventory rewrite.
+	g := NewWithT(t)
+	withCleanRegistries(t)
+
+	const trackerUID = k8stypes.UID("tracker-uid")
+	pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "testmod", UID: trackerUID}}
+	pm.Status.Resources = []configApi.ResourceRef{
+		{Version: "v1", Kind: gvk.ConfigMap.Kind, Namespace: "test", Name: "old"},
+		{Version: "v1", Kind: gvk.ConfigMap.Kind, Namespace: "test", Name: "leftover"},
+	}
+	oldObject := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+		Name: "old", Namespace: "test", OwnerReferences: []metav1.OwnerReference{platformModuleOwner(trackerUID)},
+	}}
+	leftoverObject := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+		Name: "leftover", Namespace: "test", OwnerReferences: []metav1.OwnerReference{platformModuleOwner(trackerUID)},
+	}}
+
+	s, err := testscheme.New()
+	g.Expect(err).ToNot(HaveOccurred())
+	cli, err := fakeclient.New(fakeclient.WithScheme(s), fakeclient.WithObjects(oldObject, leftoverObject))
+	g.Expect(err).ToNot(HaveOccurred())
+
+	desired := &unstructured.Unstructured{}
+	desired.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind(gvk.ConfigMap.Kind))
+	desired.SetNamespace("test")
+	desired.SetName("new")
+
+	desiredRefs := resourceRefs([]unstructured.Unstructured{*desired})
+	var pending odherrors.RequeueAfterError
+	err = cleanupStalePlatformModuleResources(t.Context(), cli, pm, desiredRefs)
+	g.Expect(errors.As(err, &pending)).To(BeTrue(), "foreground deletion must be awaited")
+	err = cleanupStalePlatformModuleResources(t.Context(), cli, pm, desiredRefs)
+	g.Expect(err).To(Succeed())
+	for _, name := range []string{"old", "leftover"} {
+		g.Expect(k8serr.IsNotFound(cli.Get(t.Context(), client.ObjectKey{Namespace: "test", Name: name}, &corev1.ConfigMap{}))).To(BeTrue(),
+			"%s must be deleted by the post-failure cleanup", name)
+	}
 }

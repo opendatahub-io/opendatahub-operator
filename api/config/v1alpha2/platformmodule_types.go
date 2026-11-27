@@ -34,22 +34,30 @@ var _ common.PlatformObject = (*PlatformModule)(nil)
 type ResourceRef struct {
 	// Group of the resource (empty for the core API group).
 	// +optional
+	// +kubebuilder:validation:MaxLength=253
 	Group string `json:"group,omitempty"`
 
 	// Version of the resource.
 	// +required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=64
 	Version string `json:"version"`
 
 	// Kind of the resource (e.g. Deployment, Service, ClusterRole).
 	// +required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
 	Kind string `json:"kind"`
 
 	// Namespace of the resource (empty for cluster-scoped resources).
 	// +optional
+	// +kubebuilder:validation:MaxLength=63
 	Namespace string `json:"namespace,omitempty"`
 
 	// Name of the resource.
 	// +required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
 	Name string `json:"name"`
 }
 
@@ -74,10 +82,13 @@ type PlatformModuleStatus struct {
 	// +optional
 	Release common.Release `json:"release,omitempty"`
 
-	// Resources is desired operator-resource inventory from the last fully
-	// successful apply and stale cleanup. It advances with Release and drives
-	// finalizer cleanup. Runtime readiness is reported separately in conditions.
-	// CRDs, Namespaces, and Leases can appear in inventory but are never deleted.
+	// Resources is the operator-resource inventory driving stale cleanup and
+	// finalizer deletion. The desired set of each deployment attempt is
+	// merged into it before deploy, so an interrupted deployment cannot
+	// orphan what it applied; entries are pruned only after a fully
+	// successful apply and stale cleanup, together with the Release commit.
+	// Runtime readiness is reported separately in conditions. CRDs,
+	// Namespaces, and Leases can appear in inventory but are never deleted.
 	// +optional
 	Resources []ResourceRef `json:"resources,omitempty"`
 }

@@ -23,15 +23,15 @@ import (
 type PlatformModuleReadinessChecker struct {
 	registry      *Registry
 	client        client.Client
-	modules       *configApi.PlatformModules
+	platform      *configApi.Platform
 	targetVersion string
 }
 
-func NewReadinessChecker(registry *Registry, cli client.Client, modules *configApi.PlatformModules, targetVersion string) *PlatformModuleReadinessChecker {
+func NewReadinessChecker(registry *Registry, cli client.Client, platform *configApi.Platform, targetVersion string) *PlatformModuleReadinessChecker {
 	return &PlatformModuleReadinessChecker{
 		registry:      registry,
 		client:        cli,
-		modules:       modules,
+		platform:      platform,
 		targetVersion: targetVersion,
 	}
 }
@@ -44,7 +44,7 @@ func (c *PlatformModuleReadinessChecker) IsReady(ctx context.Context, name strin
 	if handler == nil {
 		return false, fmt.Errorf("module %q: %w", name, dag.ErrUnknownNode)
 	}
-	if !c.registry.IsEnabled(name) || !handler.IsEnabled(c.modules) {
+	if !c.registry.IsEnabled(name) || !handler.IsEnabled(&c.platform.Spec.Modules) {
 		return true, nil
 	}
 
@@ -53,6 +53,11 @@ func (c *PlatformModuleReadinessChecker) IsReady(ctx context.Context, name strin
 	// matching release for the operator being removed.
 	if err != nil || tracker == nil || !tracker.DeletionTimestamp.IsZero() {
 		return false, err
+	}
+
+	// Foreign trackers must not open this Platform's runlevels.
+	if !PlatformOwnsResource(c.platform, tracker) {
+		return false, nil
 	}
 
 	// New trackers have no release until their first deployment and cleanup

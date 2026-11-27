@@ -37,7 +37,12 @@ func ResolvePlatformInputs(ctx context.Context, cli client.Client) (PlatformInpu
 	}
 
 	inputs := PlatformInputs{ApplicationsNamespace: applicationsNamespace}
-	if monitoringNamespace, monitoringErr := cluster.MonitoringNamespace(ctx, cli); monitoringErr == nil {
+	// MonitoringNamespace itself treats a missing DSCI (or missing CRD, e.g.
+	// xKS) as "no monitoring namespace"; any other error must not render
+	// with an unresolved value.
+	if monitoringNamespace, monitoringErr := cluster.MonitoringNamespace(ctx, cli); monitoringErr != nil {
+		return PlatformInputs{}, fmt.Errorf("resolving monitoring namespace: %w", monitoringErr)
+	} else {
 		inputs.MonitoringNamespace = monitoringNamespace
 	}
 

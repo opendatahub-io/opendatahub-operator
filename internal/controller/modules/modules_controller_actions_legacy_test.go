@@ -38,6 +38,38 @@ func (h *legacyTestHandler) GetModuleCRState(context.Context, client.Client) (CR
 	return h.state, nil
 }
 
+func TestFinalizePlatformWaitsForTrackerlessLegacyModule(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+	withTestRegistry(t)
+	handler := &legacyTestHandler{provisioningModuleStub: provisioningModuleStub{moduleName: "legacy"}, state: CRStateDeleting}
+	DefaultRegistry().Add(handler)
+	platform := &configApi.Platform{ObjectMeta: metav1.ObjectMeta{Name: configApi.PlatformInstanceName, UID: "legacy-platform"}}
+	legacy := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+		Name: "legacy-operator", Namespace: "apps",
+		OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(platform, gvk.Platform)},
+		Annotations: map[string]string{
+			annotations.InstanceUID:     string(platform.UID),
+			annotations.InstanceName:    platform.Name,
+			annotations.PlatformVersion: "3.6.0",
+			annotations.PlatformType:    string(cluster.XKS),
+		},
+	}}
+	cli, err := fakeclient.New(fakeclient.WithObjects(platform, legacy))
+	g.Expect(err).NotTo(HaveOccurred())
+	rr := &types.ReconciliationRequest{Client: cli, Instance: platform, Release: common.Release{Name: cluster.XKS}}
+
+	g.Expect(finalizePlatform(ctx, rr)).To(MatchError(ContainSubstring("legacy module legacy")))
+	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(legacy), legacy)).To(Succeed())
+	for _, policyFinalizer := range []string{metav1.FinalizerOrphanDependents, metav1.FinalizerDeleteDependents} {
+		platform.Finalizers = []string{policyFinalizer}
+		g.Expect(finalizePlatform(ctx, rr)).To(Succeed(), "legacy protection applies to background deletion")
+	}
+	platform.Finalizers = nil
+	handler.state = CRStateAbsent
+	g.Expect(finalizePlatform(ctx, rr)).To(Succeed())
+}
+
 func TestLegacyMigrationWaitsAndDoesNotRepeatDeletes(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()

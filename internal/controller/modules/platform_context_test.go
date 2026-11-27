@@ -9,8 +9,10 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/spf13/viper"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
@@ -62,32 +64,59 @@ func TestResolvePlatformInputs(t *testing.T) {
 		g.Expect(inputs).Should(BeZero())
 	})
 
-	for _, tc := range []struct {
-		name    string
-		listErr error
-	}{
-		{name: "monitoring DSCI is absent"},
-		{name: "monitoring lookup fails", listErr: errors.New("monitoring unavailable")},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			g := NewWithT(t)
-			viper.Set(namespaceKey, testApplicationsNamespace)
-			cli, err := fakeclient.New(fakeclient.WithInterceptorFuncs(interceptor.Funcs{
-				List: func(ctx context.Context, cli client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-					if tc.listErr != nil {
-						return tc.listErr
-					}
-					return cli.List(ctx, list, opts...)
-				},
-			}))
-			g.Expect(err).ShouldNot(HaveOccurred())
+	t.Run("monitoring DSCI is absent", func(t *testing.T) {
+		g := NewWithT(t)
+		viper.Set(namespaceKey, testApplicationsNamespace)
+		cli, err := fakeclient.New(fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			List: func(ctx context.Context, cli client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+				return cli.List(ctx, list, opts...)
+			},
+		}))
+		g.Expect(err).ShouldNot(HaveOccurred())
 
-			inputs, err := ResolvePlatformInputs(t.Context(), cli)
+		inputs, err := ResolvePlatformInputs(t.Context(), cli)
 
-			g.Expect(err).ShouldNot(HaveOccurred())
-			g.Expect(inputs).Should(Equal(PlatformInputs{ApplicationsNamespace: testApplicationsNamespace}))
-		})
-	}
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(inputs).Should(Equal(PlatformInputs{ApplicationsNamespace: testApplicationsNamespace}))
+	})
+
+	t.Run("monitoring CRD is absent on xks", func(t *testing.T) {
+		g := NewWithT(t)
+		viper.Set(namespaceKey, testApplicationsNamespace)
+		cli, err := fakeclient.New(fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			List: func(ctx context.Context, cli client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+				if _, ok := list.(*dsciv2.DSCInitializationList); ok {
+					return &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "dscinitialization.opendatahub.io", Kind: "DSCInitialization"}}
+				}
+				return cli.List(ctx, list, opts...)
+			},
+		}))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		inputs, err := ResolvePlatformInputs(t.Context(), cli)
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(inputs).Should(Equal(PlatformInputs{ApplicationsNamespace: testApplicationsNamespace}))
+	})
+
+	t.Run("monitoring lookup fails", func(t *testing.T) {
+		g := NewWithT(t)
+		viper.Set(namespaceKey, testApplicationsNamespace)
+		cli, err := fakeclient.New(fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			List: func(ctx context.Context, cli client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+				if _, ok := list.(*dsciv2.DSCInitializationList); ok {
+					return errors.New("monitoring unavailable")
+				}
+				return cli.List(ctx, list, opts...)
+			},
+		}))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		inputs, err := ResolvePlatformInputs(t.Context(), cli)
+
+		g.Expect(err).Should(MatchError(ContainSubstring("resolving monitoring namespace")))
+		g.Expect(inputs).Should(BeZero())
+	})
 }
 
 func TestNewPlatformCR(t *testing.T) {

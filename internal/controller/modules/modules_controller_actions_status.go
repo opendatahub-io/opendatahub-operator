@@ -41,6 +41,20 @@ func aggregatePlatformModulesStatus(ctx context.Context, rr *odhtype.Reconciliat
 					message += ": " + failure
 				}
 				notReady = append(notReady, message)
+				return nil
+			}
+			// The tracker is gone but the module CR may still be terminating:
+			// its operator must stay available until the CR's finalizers run.
+			// Report removal as pending instead of dropping the module from
+			// the aggregate; "No managed modules" only holds once the CR is
+			// absent too.
+			crState, crErr := handler.GetModuleCRState(ctx, rr.Client)
+			if crErr != nil {
+				// An unconfirmed removal state must not hide the failure.
+				return fmt.Errorf("getting %s module CR state: %w", name, crErr)
+			}
+			if crState != CRStateAbsent {
+				notReady = append(notReady, name+": removal pending")
 			}
 			return nil
 		}
@@ -57,7 +71,10 @@ func aggregatePlatformModulesStatus(ctx context.Context, rr *odhtype.Reconciliat
 		}
 		if message := preflightErrors[name]; message != "" {
 			notReady = append(notReady, name+": "+message)
-		} else if !tracker.DeletionTimestamp.IsZero() || ready == nil || ready.Status != metav1.ConditionTrue {
+		} else if !PlatformOwnsResource(platform, tracker) || !tracker.DeletionTimestamp.IsZero() || ready == nil || ready.Status != metav1.ConditionTrue {
+			// A same-name tracker owned by another Platform instance (e.g.
+			// left over after the Platform CR was recreated) must not count
+			// as ready for this Platform.
 			notReady = append(notReady, name)
 		} else if !trackerReleaseMatches(rr.Release, tracker.Status.Release) {
 			notReady = append(notReady, fmt.Sprintf("%s: upgrade pending (%s %s -> %s %s)", name,
