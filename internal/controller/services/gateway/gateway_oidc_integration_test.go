@@ -383,6 +383,11 @@ func TestOIDCDestinationRuleCreation(t *testing.T) {
 	RunDestinationRuleCreationTest(t, GetOIDCTestSetup())
 }
 
+// TestOIDCBackendTLSPolicy validates BackendTLSPolicy rendering in OIDC mode (delegates to RunBackendTLSPolicyTest).
+func TestOIDCBackendTLSPolicy(t *testing.T) {
+	RunBackendTLSPolicyTest(t, GetOIDCTestSetup())
+}
+
 // TestOIDCOCPRouteCreation validates OCP Route creation in OIDC mode (delegates to RunOCPRouteCreationTest).
 func TestOIDCOCPRouteCreation(t *testing.T) {
 	RunOCPRouteCreationTest(t, GetOIDCTestSetup(), DefaultGatewayHost(OIDCClusterDomain))

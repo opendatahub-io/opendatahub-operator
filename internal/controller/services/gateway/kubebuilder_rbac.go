@@ -17,6 +17,8 @@ package gateway
 
 // Gateway API resources (what the controller actually creates)
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;gatewayclasses;httproutes,verbs=get;list;watch;create;update;patch;delete
+// BackendTLSPolicy for gateway backend TLS verification (RHAI-19666)
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=backendtlspolicies,verbs=get;list;watch;create;update;patch;delete
 // Gateway controller creates and manages the following Istio resources
 // +kubebuilder:rbac:groups=networking.istio.io,resources=destinationrules,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.istio.io,resources=envoyfilters,verbs=get;list;watch;create;update;patch;delete
@@ -26,3 +28,6 @@ package gateway
 
 // NetworkPolicy for the kube-auth-proxy and the dashboard-redirect proxy
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
+
+// Backend TLS trust bundle: read the platform issuer CA (RHAI-19666)
+// +kubebuilder:rbac:groups=cert-manager.io,resources=issuers;clusterissuers,verbs=get;list;watch

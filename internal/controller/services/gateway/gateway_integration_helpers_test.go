@@ -509,6 +509,23 @@ func setupClusterPrerequisitesForMain(ctx context.Context, cli client.Client, au
 		panic(fmt.Sprintf("Failed to update ClusterVersion status: %v", err))
 	}
 
+	// The platform service CA ConfigMap the backend TLS trust bundle reads; the
+	// real platform controller publishing it into every namespace (including
+	// the gateway namespace, where the operator reads it) does not run in
+	// envtest.
+	serviceCAConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gateway.ServiceCAConfigMapName,
+			Namespace: gateway.GetGatewayNamespace(),
+		},
+		Data: map[string]string{
+			gateway.ServiceCAConfigMapKey: "-----BEGIN CERTIFICATE-----\ntestserviceca\n-----END CERTIFICATE-----\n",
+		},
+	}
+	if err := cli.Create(ctx, serviceCAConfigMap); err != nil {
+		panic(fmt.Sprintf("Failed to create service CA ConfigMap: %v", err))
+	}
+
 	auth := &configv1.Authentication{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: cluster.ClusterAuthenticationObj,
@@ -3063,6 +3080,61 @@ func RunDestinationRuleCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(found).To(BeTrue())
 	g.Expect(host).To(Equal("*"))
+}
+
+// RunBackendTLSPolicyTest validates that BackendTLSPolicies and the trust-bundle
+// ConfigMap are rendered for the operator-owned Service backends riding the
+// gateway. The oauth-callback route (kube-auth-proxy backend) is rendered by the
+// controller itself in every auth mode, so it serves as the known backend here.
+// The kube-auth-proxy Service exposes two ports, so the policy is scoped to the
+// routed https port via sectionName.
+func RunBackendTLSPolicyTest(t *testing.T, setup TestSetup) {
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+
+	bundle := &corev1.ConfigMap{}
+	g.Eventually(func() error {
+		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+			Name:      gateway.BackendTLSCABundleConfigMapName,
+			Namespace: gateway.GetGatewayNamespace(),
+		}, bundle)
+	}, TestTimeout, TestInterval).Should(Succeed())
+	assertOwnedByGatewayConfig(g, bundle)
+	g.Expect(bundle.Data).To(HaveKeyWithValue(gateway.BackendTLSCABundleConfigMapKey,
+		ContainSubstring("BEGIN CERTIFICATE")), "bundle ConfigMap must carry a PEM CA bundle")
+
+	policy := &gwapiv1.BackendTLSPolicy{}
+	g.Eventually(func() error {
+		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+			Name:      gateway.KubeAuthProxyName + ".https",
+			Namespace: gateway.GetGatewayNamespace(),
+		}, policy)
+	}, TestTimeout, TestInterval).Should(Succeed())
+	assertOwnedByGatewayConfig(g, policy)
+
+	g.Expect(policy.Spec.TargetRefs).To(HaveLen(1))
+	g.Expect(string(policy.Spec.TargetRefs[0].Group)).To(BeEmpty())
+	g.Expect(string(policy.Spec.TargetRefs[0].Kind)).To(Equal("Service"))
+	g.Expect(string(policy.Spec.TargetRefs[0].Name)).To(Equal(gateway.KubeAuthProxyName))
+	g.Expect(policy.Spec.TargetRefs[0].SectionName).NotTo(BeNil())
+	g.Expect(string(*policy.Spec.TargetRefs[0].SectionName)).To(Equal("https"))
+
+	g.Expect(string(policy.Spec.Validation.Hostname)).To(Equal(
+		fmt.Sprintf("%s.%s.svc.cluster.local", gateway.KubeAuthProxyName, gateway.GetGatewayNamespace())))
+
+	g.Expect(policy.Spec.Validation.CACertificateRefs).To(HaveLen(1))
+	g.Expect(string(policy.Spec.Validation.CACertificateRefs[0].Kind)).To(Equal("ConfigMap"))
+	g.Expect(string(policy.Spec.Validation.CACertificateRefs[0].Name)).To(Equal(gateway.BackendTLSCABundleConfigMapName))
+
+	// The service-wide policy from the first render (before the Service with
+	// its port list existed) is replaced by the port-scoped one.
+	g.Eventually(func() bool {
+		err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+			Name:      gateway.KubeAuthProxyName,
+			Namespace: gateway.GetGatewayNamespace(),
+		}, &gwapiv1.BackendTLSPolicy{})
+		return k8serr.IsNotFound(err)
+	}, TestTimeout, TestInterval).Should(BeTrue(), "service-wide policy must be replaced by the port-scoped policy")
 }
 
 // RunGatewayConfigStatusDomainTest validates that GatewayConfig status domain is set to the expected FQDN.

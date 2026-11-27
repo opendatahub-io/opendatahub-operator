@@ -388,7 +388,7 @@ func gatewayHTTPSListener(name gwapiv1.SectionName, secretName string, allowedRo
 	httpsMode := gwapiv1.TLSModeTerminate
 	return gwapiv1.Listener{
 		Name: name, Protocol: gwapiv1.HTTPSProtocolType, Port: StandardHTTPSPort,
-		TLS: &gwapiv1.GatewayTLSConfig{
+		TLS: &gwapiv1.ListenerTLSConfig{
 			Mode:            &httpsMode,
 			CertificateRefs: []gwapiv1.SecretObjectReference{{Name: gwapiv1.ObjectName(secretName)}},
 		},

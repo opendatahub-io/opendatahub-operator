@@ -412,23 +412,23 @@ func TestAuthenticationCleanupProtectsOnlyFailedTargets(t *testing.T) {
 		obj.SetGroupVersionKind(kind)
 		obj.SetName(name)
 		obj.SetAnnotations(map[string]string{"platform.opendatahub.io/instance.generation": "old"})
-		g.Expect(gatewayAuthResourceCollectable(rr, obj)).To(BeFalse(), name)
+		g.Expect(gatewayResourceCollectable(rr, obj)).To(BeFalse(), name)
 	}
 	for _, name := range []string{"beta-auth-creds", "kube-auth-proxy-beta", AuthClientID + "-beta", "beta-authn", "unrelated"} {
 		obj := unstructured.Unstructured{}
 		obj.SetName(name)
 		obj.SetAnnotations(map[string]string{"platform.opendatahub.io/instance.generation": "old"})
-		g.Expect(gatewayAuthResourceCollectable(rr, obj)).To(BeTrue(), name)
+		g.Expect(gatewayResourceCollectable(rr, obj)).To(BeTrue(), name)
 	}
 	obj := unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk.KubernetesGateway)
 	obj.SetName("alpha-auth-creds")
 	obj.SetAnnotations(map[string]string{"platform.opendatahub.io/instance.generation": "old"})
-	g.Expect(gatewayAuthResourceCollectable(rr, obj)).To(BeTrue(), "a removed Gateway must not be protected by a failed target's Secret name")
+	g.Expect(gatewayResourceCollectable(rr, obj)).To(BeTrue(), "a removed Gateway must not be protected by a failed target's Secret name")
 	obj.SetGroupVersionKind(gvk.Secret)
 	obj.SetName("alpha-auth-creds")
 	rr.Extensions = nil
-	g.Expect(gatewayAuthResourceCollectable(rr, obj)).To(BeTrue(), "a removed target must return to normal garbage collection")
+	g.Expect(gatewayResourceCollectable(rr, obj)).To(BeTrue(), "a removed target must return to normal garbage collection")
 	for _, test := range []struct {
 		status metav1.ConditionStatus
 		reason string
@@ -440,7 +440,7 @@ func TestAuthenticationCleanupProtectsOnlyFailedTargets(t *testing.T) {
 		{metav1.ConditionFalse, "NotReady"},
 	} {
 		recordAuthResult(rr, additionalAuthProxyTarget(config.Spec.AdditionalIngresses[0], config), test.status, test.reason, "Readiness result")
-		g.Expect(gatewayAuthResourceCollectable(rr, obj)).To(BeTrue(), "only preparation failures should prevent collection: %s", test.reason)
+		g.Expect(gatewayResourceCollectable(rr, obj)).To(BeTrue(), "only preparation failures should prevent collection: %s", test.reason)
 	}
 }
 
@@ -480,10 +480,10 @@ func TestPreparedAuthSecretSurvivesDeploymentUntilIngressRemoval(t *testing.T) {
 	obj, err := resources.ToUnstructured(secret)
 	g.Expect(err).NotTo(HaveOccurred())
 	obj.SetGroupVersionKind(gvk.Secret)
-	g.Expect(gatewayAuthResourceCollectable(rr, *obj)).To(BeFalse(), "active credentials must survive garbage collection")
+	g.Expect(gatewayResourceCollectable(rr, *obj)).To(BeFalse(), "active credentials must survive garbage collection")
 	config.Spec.AdditionalIngresses = nil
 	config.Generation++
-	g.Expect(gatewayAuthResourceCollectable(rr, *obj)).To(BeTrue(), "removed ingress credentials must be collectable")
+	g.Expect(gatewayResourceCollectable(rr, *obj)).To(BeTrue(), "removed ingress credentials must be collectable")
 }
 
 func TestAuthenticationResourcesAreIndependentPerGateway(t *testing.T) {

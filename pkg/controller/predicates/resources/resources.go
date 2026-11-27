@@ -127,6 +127,11 @@ func HTTPRouteReferencesGateway(gatewayName, gatewayNamespace string) predicate.
 	}
 
 	referencesGateway := func(obj client.Object) bool {
+		// Update events during test or shimmed setups may carry a nil old
+		// object; a nil reference never matches.
+		if obj == nil {
+			return false
+		}
 		httpRoute, ok := getHTTPRoute(obj)
 		if !ok {
 			return false
@@ -148,7 +153,10 @@ func HTTPRouteReferencesGateway(gatewayName, gatewayNamespace string) predicate.
 			return referencesGateway(e.Object)
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			return referencesGateway(e.ObjectNew)
+			// Match the old object too, so detaching a route from the
+			// gateway (or removing the ownership label) still triggers the
+			// reconcile that garbage-collects its backend TLS policy.
+			return referencesGateway(e.ObjectOld) || referencesGateway(e.ObjectNew)
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			return referencesGateway(e.Object)

@@ -29,6 +29,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -163,6 +164,18 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.HorizontalPodAutoscaler).
 		OwnsGVK(gvk.ServiceAccount).
 		OwnsGVK(gvk.HTTPRoute).
+		// BackendTLSPolicy requires Gateway API v1.4 CRDs; gate the watch so
+		// clusters serving older CRDs do not fail cache sync. The predicate
+		// checks the CRD by its explicit plural name (irregular plural).
+		OwnsGVK(gvk.BackendTLSPolicy, reconciler.Dynamic(func(ctx context.Context, rr *odhtypes.ReconciliationRequest) bool {
+			served, err := backendTLSPolicyCRDServed(ctx, rr.Client)
+			if err != nil {
+				logf.FromContext(ctx).V(1).Info(
+					"failed to check BackendTLSPolicy CRD presence; watch stays disabled", "error", err)
+				return false
+			}
+			return served
+		})).
 		OwnsGVK(gvk.Route,
 			reconciler.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 			reconciler.Dynamic(reconciler.ClusterIsOpenShift())).
@@ -224,6 +237,14 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(resources.HTTPRouteReferencesGateway(GetDefaultGatewayName(), GetGatewayNamespace())),
 		).
+		// Reconcile when the gateway-namespace service CA bundle rotates, so
+		// the backend TLS trust bundle is refreshed.
+		Watches(
+			&corev1.ConfigMap{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamedInNamespace(ServiceCAConfigMapName, GetGatewayNamespace())),
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+		).
 		// Reconcile when Dashboard CR is created or deleted so dashboard redirect
 		// resources are deployed or cleaned up accordingly.
 		WatchesGVK(
@@ -255,6 +276,12 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(createKubeAuthProxyInfrastructure).
 		WithAction(cleanupKubeAuthProxyResources).
 		WithAction(createOCPRoutes).
+		// The backend TLS action reads the platform issuer CA Secret through
+		// an uncached reader: the Secret can live outside the operator's
+		// Secret cache (cert-manager namespace).
+		WithAction(func(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+			return createBackendTLSPolicies(ctx, rr, mgr.GetAPIReader())
+		}).
 		WithAction(createDashboardRedirectsAction).
 		WithAction(template.NewAction(
 			// Template data depends on watched resources such as the default
@@ -268,7 +295,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(syncAdditionalIngressReadiness).
 		WithAction(syncGatewayConfigStatus).
 		// Preserve failed auth targets while collecting resources for removed ingresses.
-		WithAction(gc.NewAction(gc.WithObjectPredicate(gatewayAuthResourceCollectable))).
+		WithAction(gc.NewAction(gc.WithObjectPredicate(gatewayResourceCollectable))).
 		WithPostStatusFn(syncAdditionalIngressReadyStatuses).
 		WithConditions(reconciler.DependentConditions(ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType)...)
 

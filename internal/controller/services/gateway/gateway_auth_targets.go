@@ -47,9 +47,22 @@ func gatewayAuthState(rr *odhtypes.ReconciliationRequest) map[string]authProxyRe
 	return state
 }
 
-// Preserve the existing ingress stack when authentication preparation failed this pass.
-// Match kind and name so unrelated resources and removed targets still use normal GC.
-func gatewayAuthResourceCollectable(rr *odhtypes.ReconciliationRequest, resource unstructured.Unstructured) (bool, error) {
+// gatewayResourceCollectable decides whether the gateway garbage collector may
+// delete one of the operator's own resources.
+//
+// Backend TLS artifacts (RHAI-19666) are decided by the desired set recorded
+// during this reconcile rather than by the instance generation: a route
+// removal is a watch event, so waiting for a generation bump would orphan the
+// policy and its trust bundle forever. Everything else keeps the standard
+// rules, with one exception: a target whose authentication preparation failed
+// this pass preserves its existing stack. Kind and name are matched so
+// unrelated resources, and removed targets, still use normal garbage
+// collection.
+func gatewayResourceCollectable(rr *odhtypes.ReconciliationRequest, resource unstructured.Unstructured) (bool, error) {
+	if collectable, decided := backendTLSArtifactCollectable(rr, resource); decided {
+		return collectable, nil
+	}
+
 	for _, result := range gatewayAuthState(rr) {
 		if !result.failedPreparation() {
 			continue
