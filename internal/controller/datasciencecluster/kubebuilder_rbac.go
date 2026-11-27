@@ -6,6 +6,10 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="config.opendatahub.io",resources=platforms,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="config.opendatahub.io",resources=platforms/status,verbs=get;update;patch
 
+// Remove the legacy in-tree DataSciencePipelines CR before creating the AIPipelines module CR.
+// +kubebuilder:rbac:groups="components.platform.opendatahub.io",resources=datasciencepipelines,verbs=get;list;watch;patch;delete
+// +kubebuilder:rbac:groups="components.platform.opendatahub.io",resources=datasciencepipelines/finalizers,verbs=update;patch
+
 // +kubebuilder:rbac:groups="authentication.k8s.io",resources=tokenreviews,verbs=create;get
 // +kubebuilder:rbac:groups="authorization.k8s.io",resources=subjectaccessreviews,verbs=create;get
 

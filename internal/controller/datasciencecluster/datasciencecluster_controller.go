@@ -101,6 +101,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		WithAction(checkPreConditions).
 		WithAction(checkGPUOperatorPrerequisite).
 		WithAction(updateStatus).
+		WithAction(cleanupLegacyDataSciencePipelines).
 		WithAction(syncPlatformCR).
 		WithAction(cleanupDisabledComponents).
 		WithAction(cleanupDisabledModuleCRs).
