@@ -73,17 +73,8 @@ local.mk
 # Ignore catalog related files
 /catalog/
 
-# Ignore generated files
-config/crd/bases
 config/crd/external
-config/rbac/role.yaml
-config/webhook/manifests.yaml
-config/rhoai/crd/bases
 config/rhoai/crd/external
-config/rhoai/rbac/role.yaml
-config/rhoai/webhook/manifests.yaml
-config/rhaii/crd/bases
-config/rhaii/webhook/manifests.yaml
 rhoai-bundle/
 odh-bundle/
 config/cloudmanager/*/crd/bases

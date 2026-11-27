@@ -1,0 +1,26 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validating-webhook-configuration
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: webhook-service
+        namespace: system
+        path: /validate-gatewayconfig
+    failurePolicy: Fail
+    matchPolicy: Exact
+    name: gatewayconfig-validator.opendatahub.io
+    rules:
+      - apiGroups:
+          - services.platform.opendatahub.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - gatewayconfigs
+    sideEffects: None
