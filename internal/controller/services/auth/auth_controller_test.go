@@ -70,12 +70,6 @@ func TestServiceHandler_GetManagementState(t *testing.T) {
 			dsci:          &dsciv2.DSCInitialization{},
 			expectedState: operatorv1.Managed,
 		},
-		{
-			name:          "should return Managed for managed RHOAI",
-			platform:      cluster.ManagedRhoai,
-			dsci:          &dsciv2.DSCInitialization{},
-			expectedState: operatorv1.Managed,
-		},
 	}
 
 	for _, tt := range tests {

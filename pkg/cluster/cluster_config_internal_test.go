@@ -83,22 +83,6 @@ func TestSetApplicationNamespace(t *testing.T) {
 		errorMsg           string
 	}{
 		{
-			name:     "ManagedRhoai always uses redhat-ods-applications",
-			platform: ManagedRhoai,
-			existingNamespaces: []corev1.Namespace{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "custom-labeled-ns",
-						Labels: map[string]string{
-							"opendatahub.io/application-namespace": "true",
-						},
-					},
-				},
-			},
-			expectedNamespace: "redhat-ods-applications",
-			expectError:       false,
-		},
-		{
 			name:     "OpenDataHub with labeled namespace",
 			platform: OpenDataHub,
 			existingNamespaces: []corev1.Namespace{
@@ -230,12 +214,6 @@ func TestSetApplicationNamespace_RHAIOverride(t *testing.T) {
 		labeledNamespace  string
 		expectedNamespace string
 	}{
-		{
-			name:              "SetApplicationNamespace overrides ManagedRhoai default",
-			rhaiNamespace:     "my-custom-namespace",
-			platform:          ManagedRhoai,
-			expectedNamespace: "my-custom-namespace",
-		},
 		{
 			name:              "SetApplicationNamespace overrides SelfManagedRhoai default",
 			rhaiNamespace:     "my-custom-namespace",
@@ -505,11 +483,11 @@ func TestGetOCPVersion(t *testing.T) {
 }
 
 func TestGetPlatform(t *testing.T) {
-	// Not parallel: cases mutate shared clusterConfig.Namespace for CatalogSource lookups.
+	// Not parallel: cases reset the shared clusterConfig.Namespace to empty so
+	// getPlatform exercises its default operator namespace, restoring it after.
 	tests := []struct {
 		name         string
 		platformType string
-		namespace    string
 		objects      []client.Object
 		gvkMappings  []fakeclient.GVKMapping
 		want         common.Platform
@@ -520,11 +498,6 @@ func TestGetPlatform(t *testing.T) {
 			want:         OpenDataHub,
 		},
 		{
-			name:         "explicit ManagedRHOAI",
-			platformType: "ManagedRHOAI",
-			want:         ManagedRhoai,
-		},
-		{
 			name:         "explicit SelfManagedRHOAI",
 			platformType: "SelfManagedRHOAI",
 			want:         SelfManagedRhoai,
@@ -533,25 +506,6 @@ func TestGetPlatform(t *testing.T) {
 			name:         "explicit XKS",
 			platformType: string(XKS),
 			want:         XKS,
-		},
-		{
-			name:      "ManagedRhoai via CatalogSource",
-			namespace: "redhat-ods-operator",
-			objects: []client.Object{
-				newCatalogSourceForDetect("addon-managed-odh-catalog", "redhat-ods-operator"),
-			},
-			want: ManagedRhoai,
-		},
-		{
-			name:      "ManagedRhoai via ClusterCatalog",
-			namespace: "redhat-ods-operator",
-			objects: []client.Object{
-				newClusterCatalogForDetect("addon-managed-odh-catalog"),
-			},
-			gvkMappings: []fakeclient.GVKMapping{
-				{GVK: gvk.ClusterCatalog, Scope: meta.RESTScopeRoot},
-			},
-			want: ManagedRhoai,
 		},
 		{
 			name: "SelfManagedRhoai via OperatorCondition",
@@ -589,7 +543,7 @@ func TestGetPlatform(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			prevNS := clusterConfig.Namespace
-			clusterConfig.Namespace = tc.namespace
+			clusterConfig.Namespace = ""
 			t.Cleanup(func() {
 				clusterConfig.Namespace = prevNS
 			})
@@ -620,29 +574,6 @@ func newOperatorConditionForDetect(name string) *unstructured.Unstructured {
 		Object: map[string]any{
 			"apiVersion": "operators.coreos.com/v2",
 			"kind":       "OperatorCondition",
-			"metadata":   map[string]any{"name": name},
-		},
-	}
-}
-
-func newCatalogSourceForDetect(name, namespace string) *unstructured.Unstructured {
-	return &unstructured.Unstructured{
-		Object: map[string]any{
-			"apiVersion": "operators.coreos.com/v1alpha1",
-			"kind":       "CatalogSource",
-			"metadata": map[string]any{
-				"name":      name,
-				"namespace": namespace,
-			},
-		},
-	}
-}
-
-func newClusterCatalogForDetect(name string) *unstructured.Unstructured {
-	return &unstructured.Unstructured{
-		Object: map[string]any{
-			"apiVersion": "olm.operatorframework.io/v1",
-			"kind":       "ClusterCatalog",
 			"metadata":   map[string]any{"name": name},
 		},
 	}

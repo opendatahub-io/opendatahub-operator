@@ -800,7 +800,7 @@ func GetDashboardRouteName() string {
 	switch release.Name {
 	case cluster.OpenDataHub:
 		return DashboardRouteNameODH
-	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+	case cluster.SelfManagedRhoai:
 		return DashboardRouteNameRHOAI
 	default:
 		return DashboardRouteNameODH // Fallback to ODH

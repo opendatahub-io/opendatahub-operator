@@ -87,10 +87,8 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform common.P
 	if platform == cluster.SelfManagedRhoai {
 		subsName = "rhods-operator"
 	}
-	if platform != cluster.ManagedRhoai {
-		if err := cluster.DeleteExistingSubscription(ctx, cli, operatorNs, subsName); err != nil {
-			return err
-		}
+	if err := cluster.DeleteExistingSubscription(ctx, cli, operatorNs, subsName); err != nil {
+		return err
 	}
 
 	// CSV (OLMv0) and ClusterExtension (OLMv1) both tear down the operator
@@ -222,10 +220,10 @@ func removeCSV(ctx context.Context, c client.Client) error {
 // that target installNamespace (spec.namespace). Matching mirrors
 // odh-platform-utilities cluster.ClusterExtensionInstallsPackage scoping so an
 // unrelated CE for the same package in another namespace is left alone.
-// Skipped when platform is empty (unknown package) or ManagedRhoai (addon-managed).
+// Skipped when platform is empty (unknown package).
 // Absent ClusterExtension CRD is treated as success.
 func removeClusterExtension(ctx context.Context, cli client.Client, platform common.Platform, installNamespace string) error {
-	if platform == "" || platform == cluster.ManagedRhoai {
+	if platform == "" {
 		return nil
 	}
 

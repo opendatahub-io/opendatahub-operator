@@ -430,19 +430,6 @@ func TestBuildModuleCR_ProjectsDefaultedAIHubNamespace(t *testing.T) {
 	g.Expect(spec["modelRegistryNamespace"]).Should(Equal(componentApi.DefaultModelRegistriesNamespace))
 }
 
-func TestBuildModuleCR_ProjectsNotebooksNamespace_ManagedRhoai(t *testing.T) {
-	g := NewWithT(t)
-	h := dashboard.NewHandler()
-	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "", operatorv1.Removed, "")
-
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.ManagedRhoai))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	spec, _ := u.Object["spec"].(map[string]any)
-	g.Expect(spec["notebooksNamespace"]).Should(Equal(cluster.DefaultNotebooksNamespaceRHOAI),
-		"ManagedRhoai should use the same RHOAI default notebook namespace as SelfManagedRhoai")
-}
-
 func TestBuildModuleCR_ProjectsBothNamespaces(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()

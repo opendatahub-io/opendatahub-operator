@@ -183,7 +183,7 @@ ODH operator can be configured both through flags and environment variables, her
 | OPERATOR_NAMESPACE                                   | --operator-namespace        | The namespace the operator is deployed in. Falls back to in-cluster service account namespace.                                                                              | (auto-detected) |
 | DISABLE_DSC_CONFIG                                   | --disable-dsc-config        | Disable automatic creation of default DSCInitialization CR.                                                                                                                 | false         |
 | DEFAULT_MANIFESTS_PATH                               | --default-manifests-path    | Base path for component manifests.                                                                                                                                          |               |
-| ODH_PLATFORM_TYPE                                    | --platform-type             | Platform type override (OpenDataHub, ManagedRHOAI, SelfManagedRHOAI, XKS). Auto-detects if empty.                                                                          | (auto-detected) |
+| ODH_PLATFORM_TYPE                                    | --platform-type             | Platform type override (OpenDataHub, SelfManagedRHOAI, XKS). Auto-detects if empty.                                                                                        | (auto-detected) |
 
 If both env variables and flags are set for the same configuration, flags values will be used.
 

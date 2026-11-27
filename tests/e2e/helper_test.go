@@ -558,7 +558,7 @@ func operatorGroupTargetNamespaces(op Operator) []string {
 
 func getControllerDeploymentNameByPlatform(platform common.Platform) string {
 	switch platform {
-	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+	case cluster.SelfManagedRhoai:
 		return controllerDeploymentRhoai
 	case cluster.OpenDataHub:
 		return controllerDeploymentODH
@@ -569,7 +569,7 @@ func getControllerDeploymentNameByPlatform(platform common.Platform) string {
 
 func getDashboardRouteNameByPlatform(platform common.Platform) string {
 	switch platform {
-	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+	case cluster.SelfManagedRhoai:
 		return gateway.DashboardRouteNameRHOAI
 	case cluster.OpenDataHub:
 		return gateway.DashboardRouteNameODH

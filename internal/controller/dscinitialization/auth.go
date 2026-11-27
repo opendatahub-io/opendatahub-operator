@@ -18,7 +18,6 @@ var (
 	//
 	// Platform mappings:
 	//   - SelfManagedRhoai: "rhods-admins" - for self-managed Red Hat OpenShift AI
-	//   - ManagedRhoai: "dedicated-admins" - for managed/hosted Red Hat OpenShift AI
 	//   - OpenDataHub: "odh-admins" - for Open Data Hub deployments
 	//
 	// The admin group members have full administrative access to the platform,
@@ -26,7 +25,6 @@ var (
 	// all platform resources.
 	adminGroups = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "rhods-admins",
-		cluster.ManagedRhoai:     "dedicated-admins",
 		cluster.OpenDataHub:      "odh-admins",
 	}
 )
@@ -60,7 +58,7 @@ func (r *DSCInitializationReconciler) CreateAuth(ctx context.Context, platform c
 // BuildDefaultAuth creates a default Auth custom resource with platform-specific configuration.
 //
 // Parameters:
-//   - platform: The target platform type (OpenDataHub, SelfManagedRhoai, or ManagedRhoai)
+//   - platform: The target platform type (OpenDataHub or SelfManagedRhoai); other platforms fall back to the OpenDataHub admin group
 //
 // Returns:
 //   - client.Object: A serviceApi.Auth resource with platform-specific admin group and system:authenticated in allowed groups

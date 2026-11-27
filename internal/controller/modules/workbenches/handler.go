@@ -235,7 +235,7 @@ func writeDSCWorkbenchNamespace(dsc *dscApi.DataScienceCluster, enabled bool, wo
 // workbenchesPlatformType maps the platform release name to the module CR platform enum.
 func workbenchesPlatformType(release common.Platform) string {
 	switch release {
-	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+	case cluster.SelfManagedRhoai:
 		return "SelfManagedRhoai"
 	default:
 		return "OpenDataHub"
