@@ -2,6 +2,7 @@ package kustomize
 
 import (
 	"context"
+	"path"
 
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
@@ -93,8 +94,11 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (r
 			ns = rr.Manifests[i].Namespace
 		}
 
+		// String() appends the namespace, so it is not a path.
+		manifestPath := path.Join(rr.Manifests[i].Path, rr.Manifests[i].ContextDir, rr.Manifests[i].SourcePath)
+
 		renderedResources, err := a.ke.Render(
-			rr.Manifests[i].String(),
+			manifestPath,
 			kustomize.WithNamespace(ns),
 		)
 
