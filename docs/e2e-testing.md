@@ -90,6 +90,47 @@ for the first run so the suite creates `default-dsci` and `default-dsc` before
 component tests. Subsequent runs can omit it if those resources remain; with
 `E2E_TEST_DELETION_POLICY=never`, the suite leaves them in place.
 
+### Test tags
+
+The `E2E_TEST_TAG` variable (or `--tag` flag) selects which tests run:
+
+| Tag | Description |
+|-----|-------------|
+| `All` | Run every test (default) |
+| `Smoke` | Smoke-tier tests |
+| `Tier1` | Tier 1 tests |
+| `Tier2` | Tier 2 tests |
+| `Tier3` | Tier 3 tests |
+| `PreUpgrade` | Baseline assertions captured before a product upgrade |
+| `PostUpgrade` | Assertions verified against the pre-upgrade baseline after the upgrade |
+
+The upgrade phases exist for RHOAI product-upgrade qualification —
+version-to-version upgrades of the Red Hat product operator (for example
+stable-3.5 → stable-3.6), where the platform default-ingress auth stack is
+deployed and must survive the upgrade. They are not part of community CI, and
+on a cluster without the gateway service deployed the PreUpgrade tests fail
+on the missing resources rather than skip.
+
+`PreUpgrade` and `PostUpgrade` never run under `All`: post-upgrade assertions
+are meaningless without a pre-upgrade baseline, so each phase must be invoked
+with its exact tag around the upgrade:
+
+```bash
+# before the product upgrade
+E2E_TEST_TAG=PreUpgrade go test ./tests/e2e/ -run 'TestPreUpgrade' -v -count=1
+# ... perform the RHOAI upgrade (pipeline or OLM) ...
+# after the upgrade
+E2E_TEST_TAG=PostUpgrade go test ./tests/e2e/ -run 'TestPostUpgrade' -v -count=1
+```
+
+Do not use `make e2e-test` for the upgrade phases: it applies image overrides
+to the OLM subscription and runs the full suite, including cluster-mutating
+machinery that would corrupt the very state the baseline captures. The upgrade
+phases are read-only assertions against the installed product; the `-run`
+filter keeps the binary to the phase's tests only. Run both phases with the
+same version of the test suite (same e2e image or same checkout) so the
+baseline schema and the comparison code cannot skew.
+
 ## KinD E2E (KServe and Gateway)
 
 ### Step-by-step guide
@@ -463,6 +504,7 @@ done
 | `KIND_CONFIG_PATH` | `config/kind/kind-config.yaml` | KinD cluster config |
 | `PULL_SECRET` | *(required)* | Path to container registry auth config |
 | `E2E_TEST_COMPONENT` | *(all)* | Single component to test (e.g., `kserve`) |
+| `E2E_TEST_TAG` | `All` | Test tag selection: `All`, `Smoke`, `Tier1`, `Tier2`, `Tier3`, `PreUpgrade`, `PostUpgrade`. Upgrade-phase tags run only under their exact tag (see [Test tags](#test-tags)). |
 | `E2E_TEST_SERVICES` | `true` | Enable/disable service tests |
 | `E2E_TEST_WEBHOOK` | `true` | Enable/disable the existing monitoring admission-webhook tests when the monitoring service suite runs. |
 | `E2E_TEST_CONVERSION_WEBHOOK` | auto | Conversion webhook scenarios run in full OpenShift `All`/`Tier3` suites. Set `true` to include them in a targeted run or `false` to disable them. DSC scenarios delete `default-dsc`; enable DSCI/DSC backup and restore for non-disposable clusters. |
