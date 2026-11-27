@@ -12,6 +12,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -161,6 +162,9 @@ func ReconcileDefaultNetworkPolicy(
 	dscInit *dsciv2.DSCInitialization,
 	_ common.Platform,
 ) error {
+	// User Workload Monitoring scrapes controller metrics on TCP 8080.
+	metricsProtocol := corev1.ProtocolTCP
+	metricsPort := intstr.FromInt(8080)
 	np := networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dscInit.Spec.ApplicationsNamespace,
@@ -185,7 +189,17 @@ func ReconcileDefaultNetworkPolicy(
 				From: createNetworkPolicyPeer("network.openshift.io/policy-group", "ingress")}, {
 				From: createNetworkPolicyPeer("kubernetes.io/metadata.name", "openshift-host-network")}, {
 				From: createNetworkPolicyPeer("kubernetes.io/metadata.name", "openshift-monitoring")}, {
-				From: createNetworkPolicyPeer("kubernetes.io/metadata.name", "openshift-cluster-observability-operator")},
+				From: createNetworkPolicyPeer("kubernetes.io/metadata.name", "openshift-cluster-observability-operator")}, {
+				From: []networkingv1.NetworkPolicyPeer{{
+					NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
+						"kubernetes.io/metadata.name": "openshift-user-workload-monitoring",
+					}},
+					PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
+						"prometheus": "user-workload",
+					}},
+				}},
+				Ports: []networkingv1.NetworkPolicyPort{{Protocol: &metricsProtocol, Port: &metricsPort}},
+			},
 			},
 			PolicyTypes: []networkingv1.PolicyType{
 				networkingv1.PolicyTypeIngress,
