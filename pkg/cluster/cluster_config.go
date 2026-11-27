@@ -295,11 +295,12 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 // (sourceType=Catalog + packageName), not Installed=True. That matches the utilities
 // contract and can classify SelfManaged during install before the extension succeeds.
 //
-// DetectPlatform can still report values outside the supported set, for
-// example the retired managed offer detected through a legacy override or
-// a stale add-on catalog. The fall-through is deliberate: downstream
-// platform selection is allow-list shaped, so any unsupported value takes
-// the OpenDataHub defaults instead of dedicated handling.
+// DetectPlatform can still report values outside the supported set (the retired
+// managed offer, via a legacy override or a stale add-on catalog). The
+// fall-through is deliberate: most platform selection is allow-list shaped and
+// unsupported values take the OpenDataHub defaults, but call sites that branch
+// explicitly — e.g. the databaseservice SCC injection — treat an unknown value
+// as non-OpenShift rather than as ODH.
 func getPlatform(ctx context.Context, cli client.Client, platformType string) (common.Platform, error) {
 	operatorNs, err := GetOperatorNamespace()
 	if err != nil {
