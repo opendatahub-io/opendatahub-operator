@@ -1,5 +1,5 @@
 //nolint:testpackage
-package modules
+package platformmodules
 
 import (
 	"context"

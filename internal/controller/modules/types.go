@@ -12,7 +12,6 @@ import (
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -96,11 +95,6 @@ type ModuleHandler interface {
 	// DeleteModuleCR deletes the module CR from the cluster. Returns nil if
 	// the CR (or its CRD) does not exist, making the call idempotent.
 	DeleteModuleCR(ctx context.Context, cli client.Client) error
-
-	// DeleteOperatorResources renders the module's operator manifests and
-	// deletes each resource from the cluster. Used by the two-phase cleanup
-	// action after the module CR has been confirmed deleted.
-	DeleteOperatorResources(ctx context.Context, cli client.Client, platform *PlatformContext) error
 
 	// WriteDSCComponentStatus sets the module's managementState and
 	// releases on the typed DSC status field
@@ -219,6 +213,9 @@ type ModuleStatus struct {
 	// .status.releases on the module CR. Mirrored into the DSC
 	// status so consumers can inspect per-module release metadata.
 	Releases []common.ComponentRelease
+	// Deleting comes from the same read as Conditions, so readiness cannot
+	// mirror Ready from a CR that is already terminating.
+	Deleting bool
 }
 
 // OperatorManifests holds the manifest descriptors returned by a module handler.
@@ -311,20 +308,8 @@ const (
 	ConfigFromDSCI
 )
 
-// RegistrationOption configures optional orchestration metadata when adding
-// a module to the registry.
+// RegistrationOption configures metadata when adding a module to the registry.
 type RegistrationOption func(*registryEntry)
-
-// WithRunlevel sets the runlevel for DAG-based ordering. Lower runlevels
-// are provisioned first; all nodes in a runlevel must be Ready before the
-// next runlevel begins. Use the pre-defined constants in the dag package
-// (e.g. dag.RL(20)). Modules without an explicit runlevel default
-// to dag.RL(99) (provisioned last).
-func WithRunlevel(level dag.Runlevel) RegistrationOption {
-	return func(e *registryEntry) {
-		e.runlevel = level
-	}
-}
 
 // WithConfigSource sets where this module's user-facing configuration
 // lives. Modules configured from DSC have their CRs created by the DSC

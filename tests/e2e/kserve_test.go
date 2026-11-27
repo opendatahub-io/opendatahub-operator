@@ -18,8 +18,8 @@ import (
 
 	azurev1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/platformmodules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -495,7 +495,7 @@ func (tc *KserveTestCtx) ValidatePlatformConfigMap(t *testing.T) {
 
 	skipUnless(t, Smoke)
 
-	cmName := modules.PlatformConfigName(componentApi.KserveComponentName)
+	cmName := platformmodules.PlatformConfigName(componentApi.KserveComponentName)
 
 	t.Logf("Verifying platform config ConfigMap %s exists in namespace %s.", cmName, tc.AppsNamespace)
 	tc.EnsureResourceExists(
@@ -504,7 +504,7 @@ func (tc *KserveTestCtx) ValidatePlatformConfigMap(t *testing.T) {
 			Namespace: tc.AppsNamespace,
 		}),
 		WithCondition(
-			jq.Match(`.data | has("%s")`, modules.PlatformVersionKey),
+			jq.Match(`.data | has("%s")`, platformmodules.PlatformVersionKey),
 		),
 	)
 
@@ -516,10 +516,10 @@ func (tc *KserveTestCtx) ValidatePlatformConfigMap(t *testing.T) {
 				Namespace: tc.AppsNamespace,
 			}),
 			WithCondition(And(
-				jq.Match(`.data | has("%s")`, modules.CertManagerIssuerRefNameKey),
-				jq.Match(`.data | has("%s")`, modules.CertManagerIssuerRefKindKey),
-				jq.Match(`.data | has("%s")`, modules.CertManagerCASecretNameKey),
-				jq.Match(`.data | has("%s")`, modules.CertManagerCASecretNamespaceKey),
+				jq.Match(`.data | has("%s")`, platformmodules.CertManagerIssuerRefNameKey),
+				jq.Match(`.data | has("%s")`, platformmodules.CertManagerIssuerRefKindKey),
+				jq.Match(`.data | has("%s")`, platformmodules.CertManagerCASecretNameKey),
+				jq.Match(`.data | has("%s")`, platformmodules.CertManagerCASecretNamespaceKey),
 			)),
 		)
 	} else {
@@ -530,7 +530,7 @@ func (tc *KserveTestCtx) ValidatePlatformConfigMap(t *testing.T) {
 				Namespace: tc.AppsNamespace,
 			}),
 			WithCondition(
-				jq.Match(`.data | has("%s") | not`, modules.CertManagerIssuerRefNameKey),
+				jq.Match(`.data | has("%s") | not`, platformmodules.CertManagerIssuerRefNameKey),
 			),
 		)
 	}
@@ -563,6 +563,10 @@ func (tc *KserveTestCtx) ValidateComponentDisabled(t *testing.T) {
 
 		tc.EnsureResourcesGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
 	}
+	// The tracker owns the module operator, independently of KServe's workloads.
+	tc.EnsureResourceGone(WithMinimalObject(gvk.Deployment, types.NamespacedName{
+		Namespace: tc.AppsNamespace, Name: kserve.NewHandler().GetDeploymentName(),
+	}))
 
 	for _, configGVK := range []schema.GroupVersionKind{
 		gvk.LLMInferenceServiceConfigV1Alpha1,
@@ -578,6 +582,7 @@ func (tc *KserveTestCtx) ValidateComponentDisabled(t *testing.T) {
 		)
 	}
 
+	// This component label selects KServe workloads, not every module operator.
 	tc.EnsureResourcesGone(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
 		WithListOptions(

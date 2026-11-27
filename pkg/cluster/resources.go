@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -181,8 +182,10 @@ func ApplicationNamespace(ctx context.Context, cli client.Client) (string, error
 func MonitoringNamespace(ctx context.Context, cli client.Client) (string, error) {
 	dsci, err := GetDSCI(ctx, cli)
 	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return "", fmt.Errorf("MonitoringNamespace not available, DSCI not found: %w", err)
+		// A missing DSCI, or a cluster without the DSCI CRD installed (e.g.
+		// xKS), simply has no monitoring namespace. Other errors propagate.
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+			return "", nil
 		}
 		return "", fmt.Errorf("failed to get DSCInitialization: %w", err)
 	}

@@ -1,10 +1,10 @@
-package modules
+package platformmodules
 
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -16,7 +16,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+)
+
+const (
+	otelCollectorWebhookServiceName = "opentelemetry-operator-webhook-service"
+	otelCollectorResourceName       = "opentelemetrycollectors"
 )
 
 // The Collector admission webhook is installed by OLM in the namespace where
@@ -38,31 +44,25 @@ func resolveOTelOperatorNamespace(ctx context.Context, c client.Client) (string,
 		}
 	}
 
-	if len(namespaces) == 0 {
+	found := slices.Sorted(maps.Keys(namespaces))
+	switch len(found) {
+	case 0:
 		return "", nil // OTel may not be installed yet.
-	}
-	if len(namespaces) > 1 {
-		found := make([]string, 0, len(namespaces))
-		for namespace := range namespaces {
-			found = append(found, namespace)
-		}
-		sort.Strings(found)
+	case 1:
+		return found[0], nil
+	default:
 		return "", fmt.Errorf("collector admission webhooks target multiple namespaces: %s", strings.Join(found, ", "))
 	}
-	for namespace := range namespaces {
-		return namespace, nil
-	}
-	return "", nil
 }
 
 func isOTelCollectorWebhook(webhook admissionregistrationv1.ValidatingWebhook) bool {
 	service := webhook.ClientConfig.Service
-	if service == nil || service.Namespace == "" || service.Name != "opentelemetry-operator-webhook-service" {
+	if service == nil || service.Namespace == "" || service.Name != otelCollectorWebhookServiceName {
 		return false
 	}
 	for _, rule := range webhook.Rules {
-		if (slices.Contains(rule.APIGroups, "opentelemetry.io") || slices.Contains(rule.APIGroups, "*")) &&
-			(slices.Contains(rule.Resources, "opentelemetrycollectors") || slices.Contains(rule.Resources, "*")) {
+		if (slices.Contains(rule.APIGroups, gvk.OpenTelemetryCollector.Group) || slices.Contains(rule.APIGroups, "*")) &&
+			(slices.Contains(rule.Resources, otelCollectorResourceName) || slices.Contains(rule.Resources, "*")) {
 			return true
 		}
 	}
@@ -106,6 +106,6 @@ func otelCollectorWebhookPredicate() predicate.Predicate {
 	}
 }
 
-func otelCollectorWebhookPlatformRequests(_ context.Context, _ client.Object) []reconcile.Request {
-	return []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configApi.PlatformInstanceName}}}
+func monitoringModuleRequests(_ context.Context, _ client.Object) []reconcile.Request {
+	return []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: serviceApi.MonitoringServiceName}}}
 }

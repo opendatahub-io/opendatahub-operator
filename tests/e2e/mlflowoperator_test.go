@@ -13,8 +13,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	mlflowoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/platformmodules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -187,7 +187,7 @@ func (tc *MLflowOperatorTestCtx) ValidateDSCMLflowOperatorReady(t *testing.T) {
 
 func (tc *MLflowOperatorTestCtx) platformConfigNN() types.NamespacedName {
 	return types.NamespacedName{
-		Name:      modules.PlatformConfigName(componentApi.MLflowOperatorComponentName),
+		Name:      platformmodules.PlatformConfigName(componentApi.MLflowOperatorComponentName),
 		Namespace: tc.AppsNamespace,
 	}
 }
@@ -195,8 +195,8 @@ func (tc *MLflowOperatorTestCtx) platformConfigNN() types.NamespacedName {
 func (tc *MLflowOperatorTestCtx) platformConfigVersion(g Gomega) string {
 	cm := &corev1.ConfigMap{}
 	g.Expect(tc.Client().Get(context.Background(), tc.platformConfigNN(), cm)).To(Succeed())
-	g.Expect(cm.Data).To(HaveKey(modules.PlatformVersionKey))
-	return cm.Data[modules.PlatformVersionKey]
+	g.Expect(cm.Data).To(HaveKey(platformmodules.PlatformVersionKey))
+	return cm.Data[platformmodules.PlatformVersionKey]
 }
 
 func (tc *MLflowOperatorTestCtx) ValidateModuleDisabled(t *testing.T) {

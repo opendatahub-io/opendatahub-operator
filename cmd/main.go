@@ -88,6 +88,7 @@ import (
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
+	pmctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/platformmodules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -124,13 +125,7 @@ var (
 		componentApi.KueueComponentName: kueue.NewHandler(),
 	}
 
-	// Component runlevel assignments.
-	//
-	// 20 — core AI/ML, all independent; gateway deps are on GatewayConfig
-	//      service (separate lifecycle), not on other components.
-	// 31 — serving stack co-deployed together (kserve, modelcontroller, kueue).
-	// 32 — independent extensions, no KServe dependency.
-	// 33 — components that require KServe to be Ready.
+	// In-tree component runlevels in the unified provisioning DAG.
 	componentRunlevels = map[string]dag.Runlevel{
 		componentApi.KueueComponentName: dag.RL(31),
 	}
@@ -192,13 +187,14 @@ func initServices(_ context.Context, p common.Platform) error {
 }
 
 func registerComponents() {
-	for name, handler := range existingComponents {
+	for _, name := range slices.Sorted(maps.Keys(existingComponents)) {
+		handler := existingComponents[name]
 		rl := dag.RL(99)
 		if r, ok := componentRunlevels[name]; ok {
 			rl = r
 		}
 
-		cr.Add(handler, cr.WithRunlevel(rl))
+		cr.Add(handler)
 		provision.Add(name, provision.KindComponent, rl)
 
 		if !flags.IsComponentEnabled(name) {
@@ -209,7 +205,8 @@ func registerComponents() {
 }
 
 func registerServices() {
-	for name, handler := range existingServices {
+	for _, name := range slices.Sorted(maps.Keys(existingServices)) {
+		handler := existingServices[name]
 		sr.Add(handler)
 		if !flags.IsServiceEnabled(name) {
 			sr.Disable(name)
@@ -220,11 +217,7 @@ func registerServices() {
 func registerModules() {
 	for _, registration := range modulebuiltin.Registrations() {
 		name := registration.Handler.GetName()
-		opts := []mr.RegistrationOption{
-			mr.WithRunlevel(registration.Runlevel),
-			mr.WithConfigSource(registration.ConfigSource),
-		}
-		mr.Add(registration.Handler, opts...)
+		mr.Add(registration.Handler, mr.WithConfigSource(registration.ConfigSource))
 		provision.Add(name, provision.KindModule, registration.Runlevel)
 
 		if !flags.IsModuleEnabled(name) {
@@ -241,11 +234,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	viper.AutomaticEnv()
 
 	// Register component/service suppression flags (before pflag.Parse)
-	if err := flags.RegisterComponentSuppressionFlags(slices.Collect(maps.Keys(existingComponents))); err != nil {
+	if err := flags.RegisterComponentSuppressionFlags(slices.Sorted(maps.Keys(existingComponents))); err != nil {
 		fmt.Printf("Error registering component suppression flags: %s", err.Error())
 		os.Exit(1)
 	}
-	if err := flags.RegisterServiceSuppressionFlags(slices.Collect(maps.Keys(existingServices))); err != nil {
+	if err := flags.RegisterServiceSuppressionFlags(slices.Sorted(maps.Keys(existingServices))); err != nil {
 		fmt.Printf("Error registering service suppression flags: %s", err.Error())
 		os.Exit(1)
 	}
@@ -520,6 +513,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	if err = mr.NewModuleReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "modules")
+		os.Exit(1)
+	}
+
+	if err = pmctrl.NewPlatformModuleReconciler(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "platformmodule")
 		os.Exit(1)
 	}
 

@@ -1,20 +1,15 @@
-package modules
+package platformmodules
 
 import (
-	"context"
-	"fmt"
 	"maps"
 	"os"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
-	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
 const (
@@ -47,75 +42,6 @@ var platformManagedCertManagerKeys = []string{
 // PlatformConfigName returns the well-known ConfigMap name for a module.
 func PlatformConfigName(moduleName string) string {
 	return PlatformConfigPrefix + moduleName + PlatformConfigSuffix
-}
-
-// injectPlatformConfig creates or merges a per-module platform config
-// ConfigMap into rr.Resources for each enabled module. The ConfigMap
-// contains platform-managed fields (platformVersion) that the module
-// controller reads to complete the version handshake.
-//
-// If the module's rendered manifests already include a ConfigMap with
-// the same name (the optional controller configuration ConfigMap), the
-// platform-managed keys are merged into it. Platform-managed keys are
-// enforced via SSA on every reconcile — external modifications are
-// reverted.
-//
-// TODO(dag): module operators which mount the ConfigMap as volume will only
-// read platformVersion on startup.
-// When the platform version changes (upgrade), module operator
-// pods must be restarted for the version handshake to complete. The
-// platform controller should annotate module Deployments with a configmap
-// hash (e.g. pod template annotation) so that a version change triggers
-// an automatic rollout restart.
-func injectPlatformConfig(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	log := logf.FromContext(ctx)
-
-	reg := DefaultRegistry()
-	if !reg.HasEntries() {
-		return nil
-	}
-
-	platformCtx, err := buildPlatformContext(ctx, rr)
-	if err != nil {
-		return err
-	}
-
-	platformVersion := rr.Release.Version.String()
-
-	var extraParams map[string]string
-	if rr.Release.Name == cluster.XKS {
-		extraParams = buildCertManagerConfigParams()
-	}
-
-	existingCMs := indexConfigMapsByName(rr.Resources)
-
-	return reg.ForEach(func(handler ModuleHandler) error {
-		if !handler.IsEnabled(platformCtx.Modules) {
-			return nil
-		}
-
-		name := handler.GetName()
-		cmName := PlatformConfigName(name)
-
-		ns := platformCtx.ApplicationsNamespace
-
-		if idx, ok := existingCMs[cmName]; ok {
-			log.V(1).Info("merging platform config into existing ConfigMap",
-				"module", name, "configmap", cmName)
-			mergePlatformKeys(&rr.Resources[idx], platformVersion, extraParams)
-		} else {
-			log.V(1).Info("creating platform config ConfigMap",
-				"module", name, "configmap", cmName)
-			cm := buildPlatformConfigMap(cmName, ns, platformVersion, extraParams)
-			u, err := toUnstructured(cm)
-			if err != nil {
-				return fmt.Errorf("converting platform config ConfigMap for %s: %w", name, err)
-			}
-			rr.Resources = append(rr.Resources, *u)
-		}
-
-		return nil
-	})
 }
 
 func buildPlatformConfigMap(name, namespace, platformVersion string, extraParams map[string]string) *corev1.ConfigMap {
@@ -175,17 +101,9 @@ func buildCertManagerConfigParams() map[string]string {
 func indexConfigMapsByName(resources []unstructured.Unstructured) map[string]int {
 	idx := make(map[string]int)
 	for i := range resources {
-		if resources[i].GetKind() == "ConfigMap" {
+		if resources[i].GetKind() == gvk.ConfigMap.Kind {
 			idx[resources[i].GetName()] = i
 		}
 	}
 	return idx
-}
-
-func toUnstructured(obj any) (*unstructured.Unstructured, error) {
-	raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
-	if err != nil {
-		return nil, err
-	}
-	return &unstructured.Unstructured{Object: raw}, nil
 }

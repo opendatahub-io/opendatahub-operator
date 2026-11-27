@@ -114,6 +114,26 @@ type PlatformModules struct {
 // PlatformStatus defines the observed state of Platform.
 type PlatformStatus struct {
 	common.Status `json:",inline"`
+
+	// DAG records the versioned deployment checkpoint managed by the Platform
+	// controller. PlatformModule controllers use it to determine whether their
+	// runlevel has been opened for the active release.
+	// +optional
+	DAG PlatformDAGStatus `json:"dag,omitempty"`
+}
+
+// PlatformDAGStatus is the durable, versioned checkpoint for module DAG
+// orchestration. Conditions remain the human-readable progress surface;
+// this status is the machine-readable gate for PlatformModule controllers.
+type PlatformDAGStatus struct {
+	// Release identifies the platform release currently being orchestrated.
+	// +optional
+	Release common.Release `json:"release,omitempty"`
+
+	// ClearedRunlevel is the highest runlevel the Platform controller has
+	// opened for deployment.
+	// +optional
+	ClearedRunlevel int `json:"clearedRunlevel,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -3,11 +3,14 @@ package e2e_test
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
@@ -18,8 +21,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/platformmodules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -190,12 +195,10 @@ func (tc *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
 }
 
 // ValidateModuleEnabled checks that the Platform CR projects the enabled state
-// for this module. It is a separate case from ValidateComponentEnabled so the
-// module-level Platform contract is visible in E2E results.
+// and that its tracker commits an inventory owned by the module controller.
 func (tc *ComponentTestCtx) ValidateModuleEnabled(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Smoke, Tier1)
-	tc.SkipIfXKSCluster(t)
 	if tc.ModuleHandler == nil {
 		t.Fatalf("module handler is not configured for %s", tc.GVK.Kind)
 	}
@@ -212,6 +215,7 @@ func (tc *ComponentTestCtx) ValidateModuleEnabled(t *testing.T) {
 			}),
 			"Platform should report module %q as enabled", tc.ModuleHandler.GetName(),
 		)
+	tc.ValidatePlatformModuleTracker(t)
 }
 
 // ValidateModuleDisabled checks that the Platform CR projects the removed state
@@ -219,12 +223,13 @@ func (tc *ComponentTestCtx) ValidateModuleEnabled(t *testing.T) {
 func (tc *ComponentTestCtx) ValidateModuleDisabled(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Smoke, Tier1)
-	tc.SkipIfXKSCluster(t)
 	if tc.ModuleHandler == nil {
 		t.Fatalf("module handler is not configured for %s", tc.GVK.Kind)
 	}
 
-	tc.NewWithT(t).GetObject(&configApi.Platform{
+	wt := tc.NewWithT(t)
+
+	wt.GetObject(&configApi.Platform{
 		ObjectMeta: metav1.ObjectMeta{Name: tc.PlatformNamespacedName.Name},
 	}).Eventually().
 		WithContext(t.Context()).
@@ -236,6 +241,93 @@ func (tc *ComponentTestCtx) ValidateModuleDisabled(t *testing.T) {
 			}),
 			"Platform should report module %q as disabled", tc.ModuleHandler.GetName(),
 		)
+	// The preceding disable case deletes this CR directly on xKS; DSC does so
+	// on OpenShift. The tracker must keep its operator until that deletion ends.
+	tc.EnsureResourceGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
+	tc.EnsureResourceGone(WithMinimalObject(gvk.PlatformModule, types.NamespacedName{Name: tc.ModuleHandler.GetName()}))
+	tc.EnsureResourceGone(WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+		Namespace: tc.AppsNamespace, Name: platformmodules.PlatformConfigName(tc.ModuleHandler.GetName()),
+	}))
+	wt.Eventually(func(g Gomega) {
+		deployments := &appsv1.DeploymentList{}
+		g.Expect(tc.Client().List(t.Context(), deployments)).To(Succeed())
+		g.Expect(platformModuleDeployments(deployments.Items, tc.ModuleHandler.GetName())).To(BeEmpty())
+	}).WithTimeout(tc.TestTimeouts.componentReadinessTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).Should(Succeed())
+}
+
+// ValidatePlatformModuleTracker exercises the deployed controller through the
+// module suites: release publication, inventory, ownership and resource watches.
+func (tc *ComponentTestCtx) ValidatePlatformModuleTracker(t *testing.T) {
+	t.Helper()
+	g := NewWithT(t)
+	ctx := t.Context()
+	tracker := &configApi.PlatformModule{}
+	g.Eventually(func(g Gomega) {
+		platform := &configApi.Platform{}
+		g.Expect(tc.Client().Get(ctx, tc.PlatformNamespacedName, platform)).To(Succeed())
+		g.Expect(tc.ModuleHandler.IsEnabled(&platform.Spec.Modules)).To(BeTrue())
+		g.Expect(tc.Client().Get(ctx, types.NamespacedName{Name: tc.ModuleHandler.GetName()}, tracker)).To(Succeed())
+		g.Expect(tracker.Status.Release.Version).NotTo(BeZero())
+		if platform.Status.DAG.Release.Version.String() != "0.0.0" {
+			g.Expect(tracker.Status.Release).To(Equal(platform.Status.DAG.Release))
+		}
+		g.Expect(tracker.Status.Resources).NotTo(BeEmpty())
+		owner := metav1.GetControllerOf(tracker)
+		g.Expect(owner).NotTo(BeNil())
+		g.Expect(owner.APIVersion).To(Equal(gvk.Platform.GroupVersion().String()))
+		g.Expect(owner.Kind).To(Equal(gvk.Platform.Kind))
+		g.Expect(owner.UID).To(Equal(platform.UID))
+		provisioning := conditions.FindStatusCondition(tracker, status.ConditionTypeProvisioningSucceeded)
+		g.Expect(provisioning).NotTo(BeNil())
+		g.Expect(provisioning.Status).To(Equal(metav1.ConditionTrue))
+		ready := conditions.FindStatusCondition(tracker, status.ConditionTypeReady)
+		g.Expect(ready).NotTo(BeNil())
+		g.Expect(ready.Status).To(Equal(metav1.ConditionTrue))
+
+		// Verify every recorded resource exists. The integration fixture checks
+		// inventory completeness independently of the controller's status.
+		for _, ref := range tracker.Status.Resources {
+			obj := &unstructured.Unstructured{}
+			obj.SetGroupVersionKind(ref.GroupVersionKind())
+			key := client.ObjectKey{Namespace: ref.Namespace, Name: ref.Name}
+			g.Expect(tc.Client().Get(ctx, key, obj)).To(Succeed(), "inventory resource %s %s", ref.Kind, key)
+			g.Expect(obj.GetDeletionTimestamp().IsZero()).To(BeTrue(), "inventory resource %s %s is terminating", ref.Kind, key)
+		}
+		if namer, ok := tc.ModuleHandler.(modules.DeploymentNamer); ok && namer.GetDeploymentName() != "" {
+			g.Expect(tracker.Status.Resources).To(ContainElement(configApi.ResourceRef{
+				Group: gvk.Deployment.Group, Version: gvk.Deployment.Version, Kind: gvk.Deployment.Kind,
+				Namespace: tc.AppsNamespace, Name: namer.GetDeploymentName(),
+			}))
+		}
+	}).WithTimeout(tc.TestTimeouts.longEventuallyTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).Should(Succeed())
+
+	// Delete the controller-generated ConfigMap to exercise its ownership watch.
+	// A new UID proves recreation; the owner check ties it to the same tracker.
+	config := &corev1.ConfigMap{}
+	key := types.NamespacedName{Namespace: tc.AppsNamespace, Name: platformmodules.PlatformConfigName(tracker.Name)}
+	g.Expect(tc.Client().Get(ctx, key, config)).To(Succeed())
+	previousUID := config.UID
+	g.Expect(tc.Client().Delete(ctx, config)).To(Succeed())
+	g.Eventually(func(g Gomega) {
+		g.Expect(tc.Client().Get(ctx, key, config)).To(Succeed())
+		g.Expect(config.UID).NotTo(Equal(previousUID))
+		owner := metav1.GetControllerOf(config)
+		g.Expect(owner).NotTo(BeNil())
+		g.Expect(owner.UID).To(Equal(tracker.UID))
+	}).WithTimeout(tc.TestTimeouts.deletionRecoveryTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).Should(Succeed())
+}
+
+// Match all tracker incarnations by name so removal can detect leftovers after
+// the tracker itself is gone. Enablement additionally checks the current UID.
+func platformModuleDeployments(deployments []appsv1.Deployment, name string) []appsv1.Deployment {
+	return slices.DeleteFunc(slices.Clone(deployments), func(deployment appsv1.Deployment) bool {
+		owner := metav1.GetControllerOf(&deployment)
+		return owner == nil || owner.APIVersion != gvk.PlatformModule.GroupVersion().String() ||
+			owner.Kind != gvk.PlatformModule.Kind || owner.Name != name
+	})
 }
 
 // ValidateOperandsOwnerReferences ensures that all deployment resources have the correct owner references.

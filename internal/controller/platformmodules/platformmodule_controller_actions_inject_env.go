@@ -1,4 +1,4 @@
-package modules
+package platformmodules
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -17,7 +19,88 @@ const (
 	applicationsNamespaceEnv = "APPLICATIONS_NAMESPACE"
 	monitoringNamespaceEnv   = "MONITORING_NAMESPACE"
 	platformTypeEnv          = "ODH_MODULE_OPERATOR_PLATFORM_TYPE"
+	defaultContainerName     = "manager"
 )
+
+func containerNameFor(h modules.ModuleHandler) string {
+	if cn, ok := h.(modules.ContainerNamer); ok {
+		return cn.GetContainerName()
+	}
+	return defaultContainerName
+}
+
+func controllerImageFor(h modules.ModuleHandler) string {
+	if ci, ok := h.(modules.ControllerImager); ok {
+		return ci.GetControllerImage()
+	}
+	return ""
+}
+
+func initContainerNameFor(h modules.ModuleHandler) string {
+	if icn, ok := h.(modules.InitContainerNamer); ok {
+		return icn.GetInitContainerName()
+	}
+	return ""
+}
+
+func extraEnvFor(h modules.ModuleHandler) map[string]string {
+	if ep, ok := h.(modules.ExtraEnvProvider); ok {
+		return ep.GetExtraEnv()
+	}
+	return nil
+}
+
+func moduleImagesFor(h modules.ModuleHandler, manifests modules.OperatorManifests) odhtype.ModuleImages {
+	return odhtype.ModuleImages{
+		DeploymentName:    deploymentNameFor(h, manifests),
+		ContainerName:     containerNameFor(h),
+		ControllerImage:   controllerImageFor(h),
+		InitContainerName: initContainerNameFor(h),
+		Images:            h.GetRelatedImages(),
+		ExtraEnv:          extraEnvFor(h),
+	}
+}
+
+func appendModuleEnvInjection(
+	rr *odhtype.ReconciliationRequest,
+	applicationsNamespace, monitoringNamespace string,
+	platformType common.Platform,
+	moduleImages odhtype.ModuleImages,
+) {
+	mei := odhtype.GetModuleEnvInjection(rr)
+	if mei == nil {
+		mei = &odhtype.ModuleEnvInjection{
+			ApplicationsNamespace: applicationsNamespace,
+			MonitoringNamespace:   monitoringNamespace,
+			PlatformType:          platformType,
+		}
+	} else if mei.ApplicationsNamespace == "" {
+		mei.ApplicationsNamespace = applicationsNamespace
+	}
+	if mei.MonitoringNamespace == "" {
+		mei.MonitoringNamespace = monitoringNamespace
+	}
+	if mei.PlatformType == "" {
+		mei.PlatformType = platformType
+	}
+
+	mei.PerModuleImages = append(mei.PerModuleImages, moduleImages)
+	odhtype.SetModuleEnvInjection(rr, mei)
+}
+
+func deploymentNameFor(h modules.ModuleHandler, manifests modules.OperatorManifests) string {
+	if dn, ok := h.(modules.DeploymentNamer); ok {
+		if deploymentName := dn.GetDeploymentName(); deploymentName != "" {
+			return deploymentName
+		}
+	}
+	for _, chart := range manifests.HelmCharts {
+		if chart.ReleaseName != "" {
+			return chart.ReleaseName
+		}
+	}
+	return h.GetName()
+}
 
 // injectModuleEnv is a pipeline action that runs after Helm/Kustomize rendering
 // and before deploy. It mutates Deployment resources in rr.Resources to inject
@@ -29,7 +112,8 @@ const (
 // Related images are scoped per module: each module's images are only injected
 // into the Deployment matching that module's release name.
 //
-// The injection data is read from rr.ModuleEnvInjection (set by provisionModules).
+// The injection data is read from rr.ModuleEnvInjection (set by
+// provisionModuleOperator in the PlatformModule controller).
 // If nil, this action is a no-op.
 func injectModuleEnv(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	if odhtype.GetModuleEnvInjection(rr) == nil {

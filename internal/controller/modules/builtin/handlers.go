@@ -118,13 +118,11 @@ func Names() []string {
 	return names
 }
 
-// Register adds every built-in module handler and its orchestration metadata
-// to reg.
+// Register adds every built-in module handler and its configuration source to reg.
 func Register(reg *modules.Registry) {
 	for _, registration := range registrations {
 		reg.Add(
 			registration.Handler,
-			modules.WithRunlevel(registration.Runlevel),
 			modules.WithConfigSource(registration.ConfigSource),
 		)
 	}

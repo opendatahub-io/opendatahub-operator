@@ -104,9 +104,8 @@ func TestModuleChartCompliance(t *testing.T) {
 }
 
 // TestModuleChartCompliance_DatabaseServiceSCCGate covers the platform-gated
-// SCC render that TestModuleChartCompliance cannot exercise: its shared
-// PlatformContext has no Release, and the databaseservice handler fails closed
-// for unknown/empty platform names.
+// SCC render and its use ClusterRole. The shared compliance context has no
+// Release, and the databaseservice handler omits the SCC for unknown platforms.
 func TestModuleChartCompliance_DatabaseServiceSCCGate(t *testing.T) {
 	chartsRoot := requireAssetsRoot(t, "DEFAULT_CHARTS_PATH", filepath.Join("opt", "charts"))
 	h := databaseservice.NewHandler()
@@ -138,27 +137,32 @@ func TestModuleChartCompliance_DatabaseServiceSCCGate(t *testing.T) {
 		return resources
 	}
 
-	hasSCC := func(resources []unstructured.Unstructured) bool {
-		for _, res := range resources {
-			if res.GroupVersionKind() == gvk.SecurityContextConstraints &&
-				res.GetName() == "odh-db-internal-postgres" {
-				return true
+	for _, tc := range []struct {
+		name    string
+		release common.Platform
+		wantSCC bool
+	}{
+		{name: "ODH", release: cluster.OpenDataHub, wantSCC: true},
+		{name: "self-managed RHOAI", release: cluster.SelfManagedRhoai, wantSCC: true},
+		{name: "managed RHOAI", release: cluster.ManagedRhoai, wantSCC: true},
+		{name: "XKS", release: cluster.XKS},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			var sharedKinds []schema.GroupKind
+			for _, resource := range render(t, tc.release) {
+				if resource.GetName() == "odh-db-internal-postgres" {
+					sharedKinds = append(sharedKinds, resource.GroupVersionKind().GroupKind())
+				}
 			}
-		}
-		return false
+			// The use ClusterRole is unconditional; only the SCC is platform-gated.
+			wantKinds := []schema.GroupKind{gvk.ClusterRole.GroupKind()}
+			if tc.wantSCC {
+				wantKinds = append(wantKinds, gvk.SecurityContextConstraints.GroupKind())
+			}
+			g.Expect(sharedKinds).To(ConsistOf(wantKinds))
+		})
 	}
-
-	t.Run("OpenShift release renders the Internal Postgres SCC", func(t *testing.T) {
-		g := NewWithT(t)
-		g.Expect(hasSCC(render(t, cluster.OpenDataHub))).Should(BeTrue(),
-			"chart should render SecurityContextConstraints/odh-db-internal-postgres for ODH")
-	})
-
-	t.Run("XKS release omits the SCC", func(t *testing.T) {
-		g := NewWithT(t)
-		g.Expect(hasSCC(render(t, cluster.XKS))).Should(BeFalse(),
-			"chart must not render the SCC for XKS (vanilla Kubernetes)")
-	})
 }
 
 func TestModuleManifestCompliance(t *testing.T) {
@@ -236,7 +240,7 @@ func requireAssetsRoot(t *testing.T, envVar, defaultRelPath string) string {
 		t.Fatalf("failed to resolve assets root %s: %v", root, err)
 	}
 	if _, err := os.Stat(absRoot); os.IsNotExist(err) {
-		t.Skipf("assets root %s not found (run make get-manifests first)", absRoot)
+		t.Fatalf("assets root %s not found (run make get-manifests first)", absRoot)
 	}
 
 	return absRoot

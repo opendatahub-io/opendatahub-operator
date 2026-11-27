@@ -1963,6 +1963,25 @@ DataScienceCluster is not installed (xKS / vanilla Kubernetes).
 | `status` _[PlatformStatus](#platformstatus)_ |  |  |  |
 
 
+#### PlatformDAGStatus
+
+
+
+PlatformDAGStatus is the durable, versioned checkpoint for module DAG
+orchestration. Conditions remain the human-readable progress surface;
+this status is the machine-readable gate for PlatformModule controllers.
+
+
+
+_Appears in:_
+- [PlatformStatus](#platformstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `release` _[Release](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)_ | Release identifies the platform release currently being orchestrated. |  |  |
+| `clearedRunlevel` _integer_ | ClearedRunlevel is the highest runlevel the Platform controller has<br />opened for deployment. |  |  |
+
+
 #### PlatformModules
 
 
@@ -2023,6 +2042,9 @@ PlatformStatus defines the observed state of Platform.
 _Appears in:_
 - [Platform](#platform)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `dag` _[PlatformDAGStatus](#platformdagstatus)_ | DAG records the versioned deployment checkpoint managed by the Platform<br />controller. PlatformModule controllers use it to determine whether their<br />runlevel has been opened for the active release. |  |  |
 
 
 
@@ -2032,6 +2054,7 @@ Package v1alpha2 contains API Schema definitions for the config v1alpha2 API gro
 
 ### Resource Types
 - [Platform](#platform-v1alpha2)
+- [PlatformModule](#platformmodule)
 
 
 
@@ -2056,6 +2079,82 @@ DataScienceCluster is not installed (xKS / vanilla Kubernetes).
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[PlatformSpec](#platformspec-v1alpha2)_ |  |  |  |
 | `status` _[PlatformStatus](#platformstatus-v1alpha2)_ |  |  |  |
+
+
+#### PlatformDAGStatus (v1alpha2)
+
+
+
+PlatformDAGStatus is the durable, versioned checkpoint for module DAG
+orchestration. Conditions remain the human-readable progress surface;
+this status is the machine-readable gate for PlatformModule controllers.
+
+
+
+_Appears in:_
+- [PlatformStatus](#platformstatus-v1alpha2)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `release` _[Release](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)_ | Release identifies the platform release currently being orchestrated. |  |  |
+| `clearedRunlevel` _integer_ | ClearedRunlevel is the highest runlevel the Platform controller has<br />opened for deployment. |  |  |
+
+
+#### PlatformModule
+
+
+
+PlatformModule tracks the deployment lifecycle of a single module's
+operator. It is a pure status tracker: the desired state (whether the
+module is enabled) lives on the Platform CR, and this CR's presence on the
+cluster is the deploy signal for the PlatformModule controller.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `config.opendatahub.io/v1alpha2` | | |
+| `kind` _string_ | `PlatformModule` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[PlatformModuleSpec](#platformmodulespec)_ |  |  |  |
+| `status` _[PlatformModuleStatus](#platformmodulestatus)_ |  |  |  |
+
+
+#### PlatformModuleSpec
+
+
+
+PlatformModuleSpec defines the desired state of PlatformModule.
+Empty: the presence of a PlatformModule CR indicates the module should be
+deployed. Desired configuration lives in Platform.Spec.Modules[name], while
+ordering comes from the unified provision registry.
+
+
+
+_Appears in:_
+- [PlatformModule](#platformmodule)
+
+
+
+#### PlatformModuleStatus
+
+
+
+PlatformModuleStatus defines the observed state of PlatformModule.
+
+
+
+_Appears in:_
+- [PlatformModule](#platformmodule)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `release` _[Release](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)_ | Release identifies the platform version whose operator resources were<br />successfully applied and tracker-owned cleanup completed for this inventory. |  |  |
+| `resources` _[ResourceRef](#resourceref) array_ | Resources is the operator-resource inventory driving stale cleanup and<br />finalizer deletion. The desired set of each deployment attempt is<br />merged into it before deploy, so an interrupted deployment cannot<br />orphan what it applied; entries are pruned only after a fully<br />successful apply and stale cleanup, together with the Release commit.<br />Runtime readiness is reported separately in conditions. CRDs,<br />Namespaces, and Leases can appear in inventory but are never deleted. |  |  |
 
 
 #### PlatformModules (v1alpha2)
@@ -2117,6 +2216,30 @@ PlatformStatus defines the observed state of Platform.
 _Appears in:_
 - [Platform](#platform-v1alpha2)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `dag` _[PlatformDAGStatus](#platformdagstatus-v1alpha2)_ | DAG records the versioned deployment checkpoint managed by the Platform<br />controller. PlatformModule controllers use it to determine whether their<br />runlevel has been opened for the active release. |  |  |
+
+
+#### ResourceRef
+
+
+
+ResourceRef identifies a Kubernetes resource deployed by a module operator.
+Used to track deployed resources for status reporting and cleanup.
+
+
+
+_Appears in:_
+- [PlatformModuleStatus](#platformmodulestatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `group` _string_ | Group of the resource (empty for the core API group). |  | MaxLength: 253 <br /> |
+| `version` _string_ | Version of the resource. |  | MaxLength: 64 <br />MinLength: 1 <br /> |
+| `kind` _string_ | Kind of the resource (e.g. Deployment, Service, ClusterRole). |  | MaxLength: 253 <br />MinLength: 1 <br /> |
+| `namespace` _string_ | Namespace of the resource (empty for cluster-scoped resources). |  | MaxLength: 63 <br /> |
+| `name` _string_ | Name of the resource. |  | MaxLength: 253 <br />MinLength: 1 <br /> |
 
 
 
@@ -2261,7 +2384,7 @@ _Appears in:_
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `components` _[ComponentsStatus](#componentsstatus)_ | Expose component's specific status |  |  |
-| `release` _[Release](#release)_ | Version and release type |  |  |
+| `release` _[Release](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)_ | Version and release type |  |  |
 
 
 
@@ -2394,7 +2517,7 @@ _Appears in:_
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `components` _[ComponentsStatus](#componentsstatus-v3)_ | Expose component's specific status |  |  |
-| `release` _[Release](#release)_ | Version and release type |  |  |
+| `release` _[Release](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)_ | Version and release type |  |  |
 
 
 
@@ -2472,7 +2595,7 @@ _Appears in:_
 | `conditions` _Condition array_ | Conditions describes the state of the DSCInitializationStatus resource |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster |  |  |
 | `errorMessage` _string_ |  |  |  |
-| `release` _[Release](#release)_ | Version and release type |  |  |
+| `release` _[Release](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)_ | Version and release type |  |  |
 
 
 #### DevFlags
@@ -2578,7 +2701,7 @@ _Appears in:_
 | `conditions` _Condition array_ | Conditions describes the state of the DSCInitializationStatus resource |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster |  |  |
 | `errorMessage` _string_ |  |  |  |
-| `release` _[Release](#release)_ | Version and release type |  |  |
+| `release` _[Release](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)_ | Version and release type |  |  |
 
 
 #### DevFlags

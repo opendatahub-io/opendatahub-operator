@@ -7,6 +7,7 @@ import (
 
 	semver "github.com/blang/semver/v4"
 	ofversion "github.com/operator-framework/api/pkg/lib/version"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -18,11 +19,12 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
+
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -39,9 +41,6 @@ type lifecycleModuleStub struct {
 	enabled      bool
 	crState      CRState
 	moduleStatus *ModuleStatus
-
-	deleteCRCalls       int
-	deleteOperatorCalls int
 }
 
 func (s *lifecycleModuleStub) GetName() string                           { return s.name }
@@ -78,12 +77,6 @@ func (s *lifecycleModuleStub) GetModuleCRState(_ context.Context, _ client.Clien
 }
 
 func (s *lifecycleModuleStub) DeleteModuleCR(_ context.Context, _ client.Client) error {
-	s.deleteCRCalls++
-	return nil
-}
-
-func (s *lifecycleModuleStub) DeleteOperatorResources(_ context.Context, _ client.Client, _ *PlatformContext) error {
-	s.deleteOperatorCalls++
 	return nil
 }
 
@@ -94,6 +87,7 @@ func (s *lifecycleModuleStub) GetDeploymentName() string { return s.name + "-con
 
 func lifecycleRR(t *testing.T) (*types.ReconciliationRequest, *dscApi.DataScienceCluster) {
 	t.Helper()
+	g := NewWithT(t)
 
 	dsc := &dscApi.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: lifecycleTestDSC, UID: "uid-lifecycle"},
@@ -104,163 +98,74 @@ func lifecycleRR(t *testing.T) (*types.ReconciliationRequest, *dscApi.DataScienc
 	dsci.Spec.ApplicationsNamespace = lifecycleTestAppNS
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
-	if err != nil {
-		t.Fatalf("create fake client: %v", err)
-	}
+	g.Expect(err).ShouldNot(HaveOccurred())
 
 	return &types.ReconciliationRequest{
 		Client:   cli,
 		Instance: dsc,
 		Release: common.Release{
-			Name:    common.Platform("Open Data Hub"),
+			Name:    cluster.OpenDataHub,
 			Version: ofversion.OperatorVersion{Version: semver.MustParse(lifecycleTestVersion)},
 		},
 		Conditions: conditionstest.NewManager(dsc, status.ConditionTypeModulesReady),
 	}, dsc
 }
 
-// TestLifecycle_ProvisionThenDisableThenCleanup verifies the full module
-// lifecycle state machine:
-//  1. Enabled module → provisionModules adds operator manifests
-//  2. Module disabled, CR still alive → cleanupDisabledModules keeps operator
-//     manifests alive (CR deletion is owned by DSC/DSCI controllers)
-//  3. Module disabled, CR absent → cleanupDisabledModules removes operator resources
+// TestLifecycle_ProvisionThenDisableThenCleanup verifies the tracker half of
+// the module lifecycle. Operator deployment and two-phase operator cleanup are
+// owned by the PlatformModule controller; the Platform controller creates the
+// tracker while the module is enabled and deletes it when the module is disabled.
 func TestLifecycle_ProvisionThenDisableThenCleanup(t *testing.T) {
+	g := NewWithT(t)
 	withTestRegistry(t)
 
-	moduleA := &lifecycleModuleStub{
+	module := &lifecycleModuleStub{
 		name:    "module-a",
 		gvk:     schema.GroupVersionKind{Group: "test.opendatahub.io", Version: "v1alpha1", Kind: "ModuleA"},
 		enabled: true,
-		crState: CRStateAlive,
-		moduleStatus: &ModuleStatus{
-			Conditions: []common.Condition{{
-				Type:   status.ConditionTypeReady,
-				Status: metav1.ConditionTrue,
-			}},
+	}
+	DefaultRegistry().Add(module)
+
+	platform := &configApi.Platform{
+		ObjectMeta: metav1.ObjectMeta{Name: configApi.PlatformInstanceName, UID: "platform-uid"},
+	}
+	// Tracker enablement and removal only need Platform.Spec.Modules.
+	cli, err := fakeclient.New(fakeclient.WithObjects(platform))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := &types.ReconciliationRequest{
+		Client:   cli,
+		Instance: platform,
+		Release: common.Release{
+			Name:    cluster.OpenDataHub,
+			Version: ofversion.OperatorVersion{Version: semver.MustParse(lifecycleTestVersion)},
 		},
 	}
-	moduleB := &lifecycleModuleStub{
-		name:    "module-b",
-		gvk:     schema.GroupVersionKind{Group: "test.opendatahub.io", Version: "v1alpha1", Kind: "ModuleB"},
-		enabled: true,
-		crState: CRStateAlive,
-		moduleStatus: &ModuleStatus{
-			Conditions: []common.Condition{{
-				Type:   status.ConditionTypeReady,
-				Status: metav1.ConditionTrue,
-			}},
-		},
-	}
 
-	DefaultRegistry().Add(moduleA, WithRunlevel(dag.RL(20)))
-	DefaultRegistry().Add(moduleB, WithRunlevel(dag.RL(30)))
-	provision.Add(moduleA.name, provision.KindModule, dag.RL(20))
-	provision.Add(moduleB.name, provision.KindModule, dag.RL(30))
+	// Phase 1: the enabled module is represented by a PlatformModule tracker.
+	g.Expect(provisionPlatformModules(context.Background(), rr)).Should(Succeed())
+	g.Expect(rr.Resources).Should(HaveLen(1))
+	g.Expect(rr.Resources[0].GetName()).Should(Equal(module.name))
+	g.Expect(rr.Resources[0].GetAPIVersion()).Should(Equal(configApi.GroupVersion.String()))
 
-	// Phase 1: Both enabled — provision should add manifests for both.
-	rr, dsc := lifecycleRR(t)
-	if err := provisionModules(context.Background(), rr); err != nil {
-		t.Fatalf("phase 1 provision: %v", err)
-	}
-	if len(rr.Manifests) != 2 {
-		t.Fatalf("phase 1: expected 2 manifest entries, got %d", len(rr.Manifests))
-	}
+	tracker := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: module.name, OwnerReferences: []metav1.OwnerReference{{
+		APIVersion: configApi.GroupVersion.String(), Kind: configApi.PlatformKind, Name: platform.Name, UID: platform.UID, Controller: new(true),
+	}}}}
+	g.Expect(cli.Create(context.Background(), tracker)).Should(Succeed())
 
-	// Phase 2: Disable module-b, CR is still alive → cleanup keeps operator
-	// manifests alive (CR deletion is handled by DSC/DSCI controllers, not
-	// the platform controller's cleanup action).
-	moduleB.enabled = false
-	moduleB.crState = CRStateAlive
-
-	rr2, _ := lifecycleRR(t)
-	if err := cleanupDisabledModules(context.Background(), rr2); err != nil {
-		t.Fatalf("phase 2 cleanup: %v", err)
-	}
-	if moduleB.deleteCRCalls != 0 {
-		t.Fatalf("phase 2: cleanup should NOT delete module CR (owned by DSC controller), got %d calls", moduleB.deleteCRCalls)
-	}
-	if moduleB.deleteOperatorCalls != 0 {
-		t.Fatalf("phase 2: should NOT delete operator resources while CR is still alive")
-	}
-	if len(rr2.Manifests) != 1 {
-		t.Fatalf("phase 2: expected 1 manifest entry (operator kept alive), got %d", len(rr2.Manifests))
-	}
-	if moduleA.deleteCRCalls != 0 {
-		t.Fatalf("phase 2: module-a (still enabled) should not be cleaned up")
-	}
-
-	// Phase 3: module-b CR is now absent → cleanup removes operator resources.
-	moduleB.crState = CRStateAbsent
-
-	rr3, _ := lifecycleRR(t)
-	if err := cleanupDisabledModules(context.Background(), rr3); err != nil {
-		t.Fatalf("phase 3 cleanup: %v", err)
-	}
-	if moduleB.deleteOperatorCalls != 1 {
-		t.Fatalf("phase 3: expected 1 DeleteOperatorResources call, got %d", moduleB.deleteOperatorCalls)
-	}
-
-	// Verify module-a is still provisionable after module-b's full cleanup.
-	rr4, _ := lifecycleRR(t)
-	if err := provisionModules(context.Background(), rr4); err != nil {
-		t.Fatalf("phase 4 re-provision: %v", err)
-	}
-	if len(rr4.Manifests) != 1 {
-		t.Fatalf("phase 4: expected 1 manifest entry (only module-a), got %d", len(rr4.Manifests))
-	}
-
-	// Verify status computation reflects the final state.
-	rr5, _ := lifecycleRR(t)
-	rr5.Instance = dsc
-	rr5.Conditions = conditionstest.NewManager(dsc, status.ConditionTypeModulesReady)
-	if err := ComputeModulesStatusDetailed(context.Background(), rr5); err != nil {
-		t.Fatalf("status computation: %v", err)
-	}
-	modulesReady := conditions.FindStatusCondition(dsc.GetStatus(), status.ConditionTypeModulesReady)
-	if modulesReady == nil {
-		t.Fatalf("expected ModulesReady condition")
-	}
-	if modulesReady.Status != metav1.ConditionTrue {
-		t.Fatalf("expected ModulesReady=True (module-a is ready, module-b is disabled), got %s: %s",
-			modulesReady.Status, modulesReady.Message)
-	}
-}
-
-// TestLifecycle_CleanupWithDeletingCR verifies the CRStateDeleting → CRStateAbsent
-// transition preserves operator manifests during Phase 1.
-func TestLifecycle_CleanupWithDeletingCR(t *testing.T) {
-	withTestRegistry(t)
-
-	mod := &lifecycleModuleStub{
-		name:    "deleting-module",
-		gvk:     schema.GroupVersionKind{Group: "test.opendatahub.io", Version: "v1alpha1", Kind: "DeletingModule"},
-		enabled: false,
-		crState: CRStateDeleting,
-	}
-
-	DefaultRegistry().Add(mod, WithRunlevel(dag.RL(20)))
-	provision.Add(mod.name, provision.KindModule, dag.RL(20))
-
-	rr, _ := lifecycleRR(t)
-	if err := cleanupDisabledModules(context.Background(), rr); err != nil {
-		t.Fatalf("cleanup: %v", err)
-	}
-
-	if mod.deleteCRCalls != 0 {
-		t.Fatalf("should not call DeleteModuleCR when CR is already deleting")
-	}
-	if mod.deleteOperatorCalls != 0 {
-		t.Fatalf("should not delete operator resources while CR is deleting")
-	}
-	if len(rr.Manifests) != 1 {
-		t.Fatalf("expected operator manifests to be preserved, got %d", len(rr.Manifests))
-	}
+	// Phase 2: disabling the module deletes the tracker. Its finalizer then
+	// owns the operator cleanup in the PlatformModule controller.
+	module.enabled = false
+	rr.Resources = nil
+	g.Expect(cleanupDisabledPlatformModules(context.Background(), rr)).Should(Succeed())
+	err = cli.Get(context.Background(), client.ObjectKey{Name: module.name}, &configApi.PlatformModule{})
+	g.Expect(k8serr.IsNotFound(err)).Should(BeTrue())
 }
 
 // TestLifecycle_MultiModuleStatusAggregation verifies that ComputeModulesStatus
 // correctly aggregates conditions from multiple modules with different states.
 func TestLifecycle_MultiModuleStatusAggregation(t *testing.T) {
+	g := NewWithT(t)
 	withTestRegistry(t)
 
 	readyModule := &lifecycleModuleStub{
@@ -295,45 +200,38 @@ func TestLifecycle_MultiModuleStatusAggregation(t *testing.T) {
 		crState: CRStateAbsent,
 	}
 
-	DefaultRegistry().Add(readyModule, WithRunlevel(dag.RL(20)))
-	DefaultRegistry().Add(degradedModule, WithRunlevel(dag.RL(20)))
-	DefaultRegistry().Add(disabledModule, WithRunlevel(dag.RL(20)))
+	DefaultRegistry().Add(readyModule)
+	DefaultRegistry().Add(degradedModule)
+	DefaultRegistry().Add(disabledModule)
 
 	rr, dsc := lifecycleRR(t)
 	rr.Conditions = conditionstest.NewManager(dsc, status.ConditionTypeModulesReady)
 
-	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
-		t.Fatalf("compute status: %v", err)
-	}
+	g.Expect(ComputeModulesStatusDetailed(context.Background(), rr)).Should(Succeed())
 
 	readyModCond := conditions.FindStatusCondition(dsc.GetStatus(), "ReadyModReady")
-	if readyModCond == nil || readyModCond.Status != metav1.ConditionTrue {
-		t.Fatalf("expected ReadyModReady=True, got %v", readyModCond)
-	}
+	g.Expect(readyModCond).ShouldNot(BeNil())
+	g.Expect(readyModCond.Status).Should(Equal(metav1.ConditionTrue))
 
 	degradedModCond := conditions.FindStatusCondition(dsc.GetStatus(), "DegradedModReady")
-	if degradedModCond == nil || degradedModCond.Status != metav1.ConditionTrue {
-		t.Fatalf("expected DegradedModReady=True (Ready is True even if Degraded), got %v", degradedModCond)
-	}
+	g.Expect(degradedModCond).ShouldNot(BeNil())
+	g.Expect(degradedModCond.Status).Should(Equal(metav1.ConditionTrue))
 
 	disabledModCond := conditions.FindStatusCondition(dsc.GetStatus(), "DisabledModReady")
-	if disabledModCond == nil || disabledModCond.Status != metav1.ConditionFalse || disabledModCond.Reason != status.RemovedReason {
-		t.Fatalf("expected DisabledModReady=False/Removed, got %v", disabledModCond)
-	}
+	g.Expect(disabledModCond).ShouldNot(BeNil())
+	g.Expect(disabledModCond.Status).Should(Equal(metav1.ConditionFalse))
+	g.Expect(disabledModCond.Reason).Should(Equal(status.RemovedReason))
 
 	modulesReady := conditions.FindStatusCondition(dsc.GetStatus(), status.ConditionTypeModulesReady)
-	if modulesReady == nil {
-		t.Fatalf("expected ModulesReady condition")
-	}
-	if modulesReady.Status != metav1.ConditionFalse || modulesReady.Reason != status.ConditionTypeDegraded {
-		t.Fatalf("expected ModulesReady=False/Degraded (one module is degraded), got status=%s reason=%s",
-			modulesReady.Status, modulesReady.Reason)
-	}
+	g.Expect(modulesReady).ShouldNot(BeNil())
+	g.Expect(modulesReady.Status).Should(Equal(metav1.ConditionFalse))
+	g.Expect(modulesReady.Reason).Should(Equal(status.ConditionTypeDegraded))
 }
 
 // TestLifecycle_AllDisabledReportsNoManagedModules verifies that when every
 // module is disabled, ModulesReady is True with reason NoManagedModules.
 func TestLifecycle_AllDisabledReportsNoManagedModules(t *testing.T) {
+	g := NewWithT(t)
 	withTestRegistry(t)
 
 	mod := &lifecycleModuleStub{
@@ -343,28 +241,23 @@ func TestLifecycle_AllDisabledReportsNoManagedModules(t *testing.T) {
 		crState: CRStateAbsent,
 	}
 
-	DefaultRegistry().Add(mod, WithRunlevel(dag.RL(20)))
+	DefaultRegistry().Add(mod)
 
 	rr, dsc := lifecycleRR(t)
 	rr.Conditions = conditionstest.NewManager(dsc, status.ConditionTypeModulesReady)
 
-	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
-		t.Fatalf("compute status: %v", err)
-	}
+	g.Expect(ComputeModulesStatusDetailed(context.Background(), rr)).Should(Succeed())
 
 	modulesReady := conditions.FindStatusCondition(dsc.GetStatus(), status.ConditionTypeModulesReady)
-	if modulesReady == nil {
-		t.Fatalf("expected ModulesReady condition")
-	}
-	if modulesReady.Status != metav1.ConditionTrue || modulesReady.Reason != status.NoManagedModulesReason {
-		t.Fatalf("expected ModulesReady=True/%s, got status=%s reason=%s",
-			status.NoManagedModulesReason, modulesReady.Status, modulesReady.Reason)
-	}
+	g.Expect(modulesReady).ShouldNot(BeNil())
+	g.Expect(modulesReady.Status).Should(Equal(metav1.ConditionTrue))
+	g.Expect(modulesReady.Reason).Should(Equal(status.NoManagedModulesReason))
 }
 
 // TestLifecycle_StaleModuleStatusMarksNotReady verifies that a module whose
 // observedGeneration is behind its generation is reported as not ready.
 func TestLifecycle_StaleModuleStatusMarksNotReady(t *testing.T) {
+	g := NewWithT(t)
 	withTestRegistry(t)
 
 	mod := &lifecycleModuleStub{
@@ -382,22 +275,18 @@ func TestLifecycle_StaleModuleStatusMarksNotReady(t *testing.T) {
 		},
 	}
 
-	DefaultRegistry().Add(mod, WithRunlevel(dag.RL(20)))
+	DefaultRegistry().Add(mod)
 
 	rr, dsc := lifecycleRR(t)
 	rr.Conditions = conditionstest.NewManager(dsc, status.ConditionTypeModulesReady)
 
-	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
-		t.Fatalf("compute status: %v", err)
-	}
+	g.Expect(ComputeModulesStatusDetailed(context.Background(), rr)).Should(Succeed())
 
 	moduleCond := conditions.FindStatusCondition(dsc.GetStatus(), "StaleModuleReady")
-	if moduleCond == nil || moduleCond.Status != metav1.ConditionFalse {
-		t.Fatalf("expected StaleModuleReady=False (stale generation), got %v", moduleCond)
-	}
+	g.Expect(moduleCond).ShouldNot(BeNil())
+	g.Expect(moduleCond.Status).Should(Equal(metav1.ConditionFalse))
 
 	modulesReady := conditions.FindStatusCondition(dsc.GetStatus(), status.ConditionTypeModulesReady)
-	if modulesReady == nil || modulesReady.Status != metav1.ConditionFalse {
-		t.Fatalf("expected ModulesReady=False when a module has stale status")
-	}
+	g.Expect(modulesReady).ShouldNot(BeNil())
+	g.Expect(modulesReady.Status).Should(Equal(metav1.ConditionFalse))
 }

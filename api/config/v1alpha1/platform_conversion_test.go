@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	semver "github.com/blang/semver/v4"
+	ofversion "github.com/operator-framework/api/pkg/lib/version"
+
 	. "github.com/onsi/gomega"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,7 +55,15 @@ func TestPlatformConversionPreservesFieldsAndRenamesModules(t *testing.T) {
 				Reason:             "Ready",
 				Message:            "all modules are ready",
 			}},
-		}},
+		},
+			DAG: PlatformDAGStatus{
+				Release: common.Release{
+					Name:    "OpenDataHub",
+					Version: ofversion.OperatorVersion{Version: semver.MustParse("3.6.0")},
+				},
+				ClearedRunlevel: 31,
+			},
+		},
 	}
 
 	hub := &v1alpha2.Platform{}

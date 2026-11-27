@@ -427,6 +427,12 @@ var (
 
 	Platform = PlatformV1alpha2
 
+	PlatformModule = schema.GroupVersionKind{
+		Group:   configApi.GroupVersion.Group,
+		Version: configApi.GroupVersion.Version,
+		Kind:    configApi.PlatformModuleKind,
+	}
+
 	FeastOperator = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
@@ -905,6 +911,12 @@ var (
 		Group:   "monitoring.coreos.com",
 		Version: "v1",
 		Kind:    "PodMonitor",
+	}
+
+	CoreosPrometheusRule = schema.GroupVersionKind{
+		Group:   "monitoring.coreos.com",
+		Version: "v1",
+		Kind:    "PrometheusRule",
 	}
 
 	PrometheusRule = schema.GroupVersionKind{

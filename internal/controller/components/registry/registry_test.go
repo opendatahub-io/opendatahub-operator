@@ -13,7 +13,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 
@@ -21,8 +20,7 @@ import (
 )
 
 type fakeComponentHandler struct {
-	name    string
-	enabled bool
+	name string
 }
 
 func (f *fakeComponentHandler) Init(_ common.Platform, _ operatorconfig.OperatorSettings) error {
@@ -42,16 +40,16 @@ func (f *fakeComponentHandler) GroupVersionKind() schema.GroupVersionKind {
 	return schema.GroupVersionKind{}
 }
 func (f *fakeComponentHandler) IsEnabled(_ *dscApi.DataScienceCluster) bool {
-	return f.enabled
+	return true
 }
 
 func TestForEachSkipsSuppressedComponents(t *testing.T) {
 	g := NewWithT(t)
 
 	reg := &registry.Registry{}
-	reg.Add(&fakeComponentHandler{name: "comp-a", enabled: true})
-	reg.Add(&fakeComponentHandler{name: "comp-b", enabled: true})
-	reg.Add(&fakeComponentHandler{name: "comp-c", enabled: true})
+	reg.Add(&fakeComponentHandler{name: "comp-a"})
+	reg.Add(&fakeComponentHandler{name: "comp-b"})
+	reg.Add(&fakeComponentHandler{name: "comp-c"})
 
 	reg.Disable("comp-b")
 
@@ -72,8 +70,8 @@ func TestForEachVisitsAllWhenNoneSuppressed(t *testing.T) {
 	g := NewWithT(t)
 
 	reg := &registry.Registry{}
-	reg.Add(&fakeComponentHandler{name: "comp-x", enabled: true})
-	reg.Add(&fakeComponentHandler{name: "comp-y", enabled: true})
+	reg.Add(&fakeComponentHandler{name: "comp-x"})
+	reg.Add(&fakeComponentHandler{name: "comp-y"})
 
 	var visited []string
 	err := reg.ForEach(func(ch registry.ComponentHandler) error {
@@ -89,49 +87,29 @@ func TestForEachCollectsErrors(t *testing.T) {
 	g := NewWithT(t)
 
 	reg := &registry.Registry{}
-	reg.Add(&fakeComponentHandler{name: "comp-err", enabled: true})
+	reg.Add(&fakeComponentHandler{name: "alpha"})
+	reg.Add(&fakeComponentHandler{name: "middle"})
+	reg.Add(&fakeComponentHandler{name: "zebra"})
+	failures := map[string]error{"alpha": errors.New("first failure"), "zebra": errors.New("last failure")}
+	var visited []string
 
 	err := reg.ForEach(func(ch registry.ComponentHandler) error {
-		return errors.New("test error")
+		visited = append(visited, ch.GetName())
+		return failures[ch.GetName()]
 	})
 
-	g.Expect(err).Should(HaveOccurred())
-}
-
-func TestIsComponentEnabledReturnsFalseWhenSuppressed(t *testing.T) {
-	g := NewWithT(t)
-
-	reg := &registry.Registry{}
-	reg.Add(&fakeComponentHandler{name: "comp-sup", enabled: true})
-
-	g.Expect(reg.IsComponentEnabled("comp-sup", nil)).Should(BeTrue(), "should be enabled when not suppressed")
-
-	reg.Disable("comp-sup")
-	g.Expect(reg.IsComponentEnabled("comp-sup", nil)).Should(BeFalse(), "should be disabled when suppressed")
-}
-
-func TestSetEnabled(t *testing.T) {
-	g := NewWithT(t)
-
-	reg := &registry.Registry{}
-	reg.Add(&fakeComponentHandler{name: "flagtest", enabled: true})
-
-	g.Expect(reg.IsEnabled("flagtest")).Should(BeTrue(), "should be enabled by default")
-
-	reg.Disable("flagtest")
-	g.Expect(reg.IsEnabled("flagtest")).Should(BeFalse(), "should be disabled after Disable()")
-
-	reg.Enable("flagtest")
-	g.Expect(reg.IsEnabled("flagtest")).Should(BeTrue(), "should be enabled after Enable()")
+	g.Expect(visited).To(Equal([]string{"alpha", "middle", "zebra"}))
+	g.Expect(errors.Is(err, failures["alpha"])).To(BeTrue())
+	g.Expect(errors.Is(err, failures["zebra"])).To(BeTrue())
 }
 
 func TestForEachIsDeterministic(t *testing.T) {
 	g := NewWithT(t)
 
 	reg := &registry.Registry{}
-	reg.Add(&fakeComponentHandler{name: "zebra", enabled: true}, registry.WithRunlevel(dag.RL(20)))
-	reg.Add(&fakeComponentHandler{name: "alpha", enabled: true}, registry.WithRunlevel(dag.RL(20)))
-	reg.Add(&fakeComponentHandler{name: "middle", enabled: true}, registry.WithRunlevel(dag.RL(20)))
+	reg.Add(&fakeComponentHandler{name: "zebra"})
+	reg.Add(&fakeComponentHandler{name: "alpha"})
+	reg.Add(&fakeComponentHandler{name: "middle"})
 
 	var visited []string
 	err := reg.ForEach(func(ch registry.ComponentHandler) error {
@@ -143,107 +121,13 @@ func TestForEachIsDeterministic(t *testing.T) {
 	g.Expect(visited).Should(Equal([]string{"alpha", "middle", "zebra"}))
 }
 
-func TestResolvedBatchesRunlevelOrdering(t *testing.T) {
-	g := NewWithT(t)
-
-	reg := &registry.Registry{}
-	reg.Add(&fakeComponentHandler{name: "ext-comp", enabled: true}, registry.WithRunlevel(dag.RL(30)))
-	reg.Add(&fakeComponentHandler{name: "infra-comp", enabled: true}, registry.WithRunlevel(dag.RL(0)))
-	reg.Add(&fakeComponentHandler{name: "ai-comp", enabled: true}, registry.WithRunlevel(dag.RL(20)))
-
-	batches, err := reg.ResolvedBatches()
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(batches).Should(HaveLen(3))
-
-	g.Expect(batches[0]).Should(HaveLen(1))
-	g.Expect(batches[0][0].GetName()).Should(Equal("infra-comp"))
-	g.Expect(batches[1]).Should(HaveLen(1))
-	g.Expect(batches[1][0].GetName()).Should(Equal("ai-comp"))
-	g.Expect(batches[2]).Should(HaveLen(1))
-	g.Expect(batches[2][0].GetName()).Should(Equal("ext-comp"))
-}
-
-func TestResolvedBatchesSkipsDisabled(t *testing.T) {
-	g := NewWithT(t)
-
-	reg := &registry.Registry{}
-	reg.Add(&fakeComponentHandler{name: "a", enabled: true}, registry.WithRunlevel(dag.RL(20)))
-	reg.Add(&fakeComponentHandler{name: "b", enabled: true}, registry.WithRunlevel(dag.RL(20)))
-	reg.Disable("b")
-
-	batches, err := reg.ResolvedBatches()
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(batches).Should(HaveLen(1))
-	g.Expect(batches[0]).Should(HaveLen(1))
-	g.Expect(batches[0][0].GetName()).Should(Equal("a"))
-}
-
-func TestResolvedBatchesCacheInvalidation(t *testing.T) {
-	g := NewWithT(t)
-
-	reg := &registry.Registry{}
-	reg.Add(&fakeComponentHandler{name: "comp-a", enabled: true}, registry.WithRunlevel(dag.RL(20)))
-
-	batches1, err := reg.ResolvedBatches()
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(batches1).Should(HaveLen(1))
-
-	reg.Add(&fakeComponentHandler{name: "comp-b", enabled: true}, registry.WithRunlevel(dag.RL(30)))
-
-	batches2, err := reg.ResolvedBatches()
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(batches2).Should(HaveLen(2))
-}
-
-func TestReverseBatchesOrdering(t *testing.T) {
-	g := NewWithT(t)
-
-	reg := &registry.Registry{}
-	reg.Add(&fakeComponentHandler{name: "infra", enabled: true}, registry.WithRunlevel(dag.RL(0)))
-	reg.Add(&fakeComponentHandler{name: "ext-a", enabled: true}, registry.WithRunlevel(dag.RL(30)))
-	reg.Add(&fakeComponentHandler{name: "ext-b", enabled: true}, registry.WithRunlevel(dag.RL(30)))
-
-	batches, err := reg.ReverseBatches()
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(batches).Should(HaveLen(2))
-
-	g.Expect(batches[0][0].GetName()).Should(Equal("ext-b"))
-	g.Expect(batches[0][1].GetName()).Should(Equal("ext-a"))
-	g.Expect(batches[1][0].GetName()).Should(Equal("infra"))
-}
-
 func TestLookup(t *testing.T) {
 	g := NewWithT(t)
 
 	reg := &registry.Registry{}
-	h := &fakeComponentHandler{name: "findme", enabled: true}
+	h := &fakeComponentHandler{name: "findme"}
 	reg.Add(h)
 
 	g.Expect(reg.Lookup("findme")).Should(Equal(h))
 	g.Expect(reg.Lookup("nonexistent")).Should(BeNil())
-}
-
-func TestForAllIncludesDisabled(t *testing.T) {
-	g := NewWithT(t)
-
-	reg := &registry.Registry{}
-	reg.Add(&fakeComponentHandler{name: "enabled-comp", enabled: true})
-	reg.Add(&fakeComponentHandler{name: "disabled-comp", enabled: true})
-	reg.Disable("disabled-comp")
-
-	type visit struct {
-		name    string
-		enabled bool
-	}
-	var visits []visit
-
-	err := reg.ForAll(func(handler registry.ComponentHandler, enabled bool) error {
-		visits = append(visits, visit{name: handler.GetName(), enabled: enabled})
-		return nil
-	})
-
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(visits).Should(HaveLen(2))
-	g.Expect(visits).Should(ContainElement(visit{name: "disabled-comp", enabled: false}))
-	g.Expect(visits).Should(ContainElement(visit{name: "enabled-comp", enabled: true}))
 }

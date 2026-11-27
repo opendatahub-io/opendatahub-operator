@@ -120,15 +120,6 @@ func (r *UnifiedRegistry) LookupOrder(name string) (int, bool) {
 	return node.runlevel.Order, true
 }
 
-// InvalidateCache clears the resolved-batch cache. Per-type registries
-// call this on mutation so the unified resolution stays consistent.
-func (r *UnifiedRegistry) InvalidateCache() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.resolvedCache = nil
-}
-
 // ResolvedBatches returns nodes grouped by runlevel and topologically
 // sorted within each batch. Only enabled nodes are included.
 // Results are cached until the registry is mutated.
@@ -234,8 +225,4 @@ func Disable(name string) {
 
 func ReverseBatchesAll() ([][]UnifiedNode, error) {
 	return defaultRegistry.ReverseBatchesAll()
-}
-
-func InvalidateCache() {
-	defaultRegistry.InvalidateCache()
 }

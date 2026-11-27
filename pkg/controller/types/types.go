@@ -43,15 +43,12 @@ type OperatorCR struct {
 	Namespace string
 }
 
-// ModuleEnvInjection holds aggregated environment variable injection data
-// for all enabled modules. Set by provisionModules and consumed by the
-// injectModuleEnv action to inject RELATED_IMAGE_*, APPLICATIONS_NAMESPACE,
-// MONITORING_NAMESPACE and platform identity env vars into module operator
-// Deployments.
+// ModuleEnvInjection holds environment variable injection data for rendered
+// module operator resources. Set and consumed by PlatformModule controller
+// actions to inject RELATED_IMAGE_*, APPLICATIONS_NAMESPACE,
+// MONITORING_NAMESPACE, and platform identity env vars into Deployments.
 type ModuleEnvInjection struct {
-	// PerModuleImages maps each module's related images to its chart/manifest
-	// resources. Each entry's images are only injected into Deployments
-	// rendered from that module's operator manifests.
+	// PerModuleImages maps related images to their target Deployments.
 	PerModuleImages []ModuleImages
 	// ApplicationsNamespace is the platform's shared application namespace.
 	ApplicationsNamespace string

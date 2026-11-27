@@ -31,7 +31,10 @@ func (p *Platform) ConvertTo(dstRaw conversion.Hub) error {
 			DatabaseService:      src.Spec.Modules.DatabaseService,
 		},
 	}
-	dst.Status = v1alpha2.PlatformStatus{Status: src.Status.Status}
+	dst.Status = v1alpha2.PlatformStatus{
+		Status: src.Status.Status,
+		DAG:    v1alpha2.PlatformDAGStatus(src.Status.DAG),
+	}
 
 	return nil
 }
@@ -61,7 +64,10 @@ func (p *Platform) ConvertFrom(srcRaw conversion.Hub) error {
 			DatabaseService:      src.Spec.Modules.DatabaseService,
 		},
 	}
-	p.Status = PlatformStatus{Status: src.Status.Status}
+	p.Status = PlatformStatus{
+		Status: src.Status.Status,
+		DAG:    PlatformDAGStatus(src.Status.DAG),
+	}
 
 	return nil
 }

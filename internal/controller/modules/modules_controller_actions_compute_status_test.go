@@ -15,7 +15,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -115,45 +114,6 @@ func setupStatusTest(t *testing.T, handlers ...*statusTestHandler) (*odhtype.Rec
 	return rr, func() { r = oldR }
 }
 
-// setupStatusTestAggregateOnly creates a test reconciliation request
-// with only aggregate ModulesReady declared (simulates Platform controller).
-// Uses Platform as instance since computeModulesStatusAggregate requires it.
-func setupStatusTestAggregateOnly(t *testing.T, handlers ...*statusTestHandler) (*odhtype.ReconciliationRequest, func()) {
-	t.Helper()
-	g := NewWithT(t)
-
-	oldR := r
-	r = &Registry{}
-	for _, h := range handlers {
-		r.Add(h)
-	}
-
-	platform := &configApi.Platform{
-		ObjectMeta: metav1.ObjectMeta{Name: "default"},
-	}
-
-	dsci := &dsciv2.DSCInitialization{
-		ObjectMeta: metav1.ObjectMeta{Name: "default-dsci"},
-		Spec: dsciv2.DSCInitializationSpec{
-			ApplicationsNamespace: "test-ns",
-		},
-	}
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	cm := conditionstest.NewManager(platform, status.ConditionTypeReady, status.ConditionTypeModulesReady)
-
-	rr := &odhtype.ReconciliationRequest{
-		Client:     cli,
-		Instance:   platform,
-		Conditions: cm,
-		Release:    common.Release{Name: cluster.OpenDataHub},
-	}
-
-	return rr, func() { r = oldR }
-}
-
 func TestComputeModulesStatusDetailed_AllReady(t *testing.T) {
 	g := NewWithT(t)
 
@@ -224,6 +184,7 @@ func TestComputeModulesStatusDetailed_SkipsDSCIConfiguredModules(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(rr.Conditions.GetCondition("AIGatewayReady")).ShouldNot(BeNil())
+	g.Expect(rr.Conditions.GetCondition("AIGatewayReady").Status).Should(Equal(metav1.ConditionTrue))
 	g.Expect(rr.Conditions.GetCondition("MonitoringReady")).Should(BeNil(),
 		"DSCI-configured modules must not appear on DSC status")
 }
@@ -277,25 +238,6 @@ func TestComputeModulesStatusDetailed_DisabledModule(t *testing.T) {
 	g.Expect(modulesReady.Reason).Should(Equal(status.NoManagedModulesReason))
 }
 
-func TestComputeModulesStatusAggregate_DisabledPendingDeletion(t *testing.T) {
-	g := NewWithT(t)
-
-	h1 := newStatusTestHandler("gw", "AIGateway", false, nil)
-	h1.crState = CRStateAlive
-
-	rr, cleanup := setupStatusTestAggregateOnly(t, h1)
-	defer cleanup()
-
-	err := computeModulesStatusAggregate(t.Context(), rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	modulesReady := rr.Conditions.GetCondition(status.ConditionTypeModulesReady)
-	g.Expect(modulesReady.Status).Should(Equal(metav1.ConditionTrue))
-	g.Expect(modulesReady.Severity).Should(Equal(common.ConditionSeverityInfo))
-	g.Expect(modulesReady.Reason).Should(Equal(status.RemovedReason))
-	g.Expect(modulesReady.Message).Should(ContainSubstring("pending deletion: gw"))
-}
-
 func TestComputeModulesStatusDetailed_StatusError(t *testing.T) {
 	g := NewWithT(t)
 
@@ -313,81 +255,6 @@ func TestComputeModulesStatusDetailed_StatusError(t *testing.T) {
 	g.Expect(cond.Message).Should(ContainSubstring("CR not found"))
 
 	g.Expect(rr.Conditions.GetCondition(status.ConditionTypeModulesReady).Status).Should(Equal(metav1.ConditionFalse))
-}
-
-func TestComputeModulesStatusAggregate_AllReady_NoPerModuleConditions(t *testing.T) {
-	g := NewWithT(t)
-
-	h1 := newStatusTestHandler("gw", "AIGateway", true, &ModuleStatus{
-		Conditions:         []common.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
-		ObservedGeneration: 1,
-		Generation:         1,
-	})
-	h2 := newStatusTestHandler("mon", "Monitoring", true, &ModuleStatus{
-		Conditions:         []common.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
-		ObservedGeneration: 1,
-		Generation:         1,
-	})
-
-	rr, cleanup := setupStatusTestAggregateOnly(t, h1, h2)
-	defer cleanup()
-
-	err := computeModulesStatusAggregate(t.Context(), rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	g.Expect(rr.Conditions.GetCondition(status.ConditionTypeModulesReady)).ShouldNot(BeNil())
-	g.Expect(rr.Conditions.GetCondition(status.ConditionTypeModulesReady).Status).Should(Equal(metav1.ConditionTrue))
-
-	g.Expect(rr.Conditions.GetCondition("AIGatewayReady")).Should(BeNil(),
-		"aggregate should not set per-module conditions")
-	g.Expect(rr.Conditions.GetCondition("MonitoringReady")).Should(BeNil(),
-		"aggregate should not set per-module conditions")
-}
-
-func TestComputeModulesStatusAggregate_SomeNotReady(t *testing.T) {
-	g := NewWithT(t)
-
-	h1 := newStatusTestHandler("gw", "AIGateway", true, &ModuleStatus{
-		Conditions:         []common.Condition{{Type: "Ready", Status: metav1.ConditionFalse, Reason: "NotReady"}},
-		ObservedGeneration: 1,
-		Generation:         1,
-	})
-
-	rr, cleanup := setupStatusTestAggregateOnly(t, h1)
-	defer cleanup()
-
-	err := computeModulesStatusAggregate(t.Context(), rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	modulesReady := rr.Conditions.GetCondition(status.ConditionTypeModulesReady)
-	g.Expect(modulesReady.Status).Should(Equal(metav1.ConditionFalse))
-	g.Expect(modulesReady.Message).Should(ContainSubstring("gw"))
-
-	g.Expect(rr.Conditions.GetCondition("AIGatewayReady")).Should(BeNil(),
-		"aggregate should not set per-module conditions")
-}
-
-func TestComputeModulesStatusAggregate_Degraded(t *testing.T) {
-	g := NewWithT(t)
-
-	h1 := newStatusTestHandler("gw", "AIGateway", true, &ModuleStatus{
-		Conditions: []common.Condition{
-			{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"},
-			{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "Degraded"},
-		},
-		ObservedGeneration: 1,
-		Generation:         1,
-	})
-
-	rr, cleanup := setupStatusTestAggregateOnly(t, h1)
-	defer cleanup()
-
-	err := computeModulesStatusAggregate(t.Context(), rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	modulesReady := rr.Conditions.GetCondition(status.ConditionTypeModulesReady)
-	g.Expect(modulesReady.Status).Should(Equal(metav1.ConditionFalse))
-	g.Expect(modulesReady.Reason).Should(Equal(status.ConditionTypeDegraded))
 }
 
 func TestComputeModulesStatusDetailed_StatusError_SubmodulesNotMarkedRemoved(t *testing.T) {

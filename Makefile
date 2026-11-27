@@ -287,9 +287,10 @@ endif
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_ingresses.yaml
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_authentications.yaml
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/oauth.openshift.io_oauthclients.yaml
-	@# Copy rhaii CRDs to shared overlay and generate kustomization.
+	@# Copy Platform CRDs to shared RHAII/xKS overlay and generate kustomization
 	@mkdir -p config/rhaii/crd/bases
 	@cp "$(CONFIG_DIR)/crd/bases/config.opendatahub.io_platforms.yaml" config/rhaii/crd/bases/
+	@cp "$(CONFIG_DIR)/crd/bases/config.opendatahub.io_platformmodules.yaml" config/rhaii/crd/bases/
 	@cp "$(CONFIG_DIR)/crd/bases/services.platform.opendatahub.io_gatewayconfigs.yaml" config/rhaii/crd/bases/
 	@cp "$(CONFIG_DIR)/crd/kustomizeconfig.yaml" config/rhaii/crd/kustomizeconfig.yaml
 	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
@@ -418,6 +419,7 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md && \
 	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)|g" ./docs/api-overview.md && \
 	$(SED_COMMAND) -i "s|](#managementspec)|](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)|g" ./docs/api-overview.md && \
+	$(SED_COMMAND) -i "s|](#release)|](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#Release)|g" ./docs/api-overview.md && \
 	go run ./hack/disambiguate-api-doc-anchors.go ./docs/api-overview.md
 	$(CRD_REF_DOCS) --source-path ./api/cloudmanager/ --output-path ./docs/cloudmanager-api-overview.md --renderer markdown --config ./crd-ref-docs.cloudmanager.config.yaml
 
@@ -699,7 +701,7 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/... ./api/datasciencecluster/... ./api/services/v1alpha1/... ./cmd/cloudmanager/...
+TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/... ./api/config/... ./api/datasciencecluster/... ./api/services/v1alpha1/... ./cmd/cloudmanager/...
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.

@@ -3,7 +3,8 @@
 This package implements the platform-side orchestration for modular components.
 It provides the `ModuleHandler` interface, a `BaseHandler` with shared helpers,
 a registry for handler lifecycle, and watch infrastructure for status
-aggregation.
+aggregation. PlatformModule reconciliation actions live in the sibling
+`internal/controller/platformmodules` package.
 
 For the full architectural context, see
 [docs/modular/Onboarding Guide for ODH Operator Modules.md](../../../docs/modular/Onboarding%20Guide%20for%20ODH%20Operator%20Modules.md).
@@ -11,65 +12,110 @@ For the full architectural context, see
 ## Architecture
 
 The modular orchestrator manages **out-of-tree module operators** alongside the
-existing in-tree components. The DSC controller's action pipeline handles both:
+existing in-tree components. The Platform controller coordinates the unified
+DAG and creates one tracker CR per managed module; the PlatformModule controller
+owns the corresponding operator lifecycle:
 
 ```text
-DSC Reconcile
-  -> provisionComponents       (component CRs -> rr.Resources)
-  -> cleanupDisabledModules    (two-phase cleanup of disabled module resources)
-  -> provisionModules          (module operator manifests -> rr.HelmCharts
-                                and/or rr.Manifests; module CRs -> rr.Resources)
-  -> helm.NewAction            (renders Helm charts into rr.Resources)
-  -> kustomize.NewAction       (renders Kustomize manifests into rr.Resources)
-  -> deploy.NewAction          (SSA-applies everything in rr.Resources)
-  -> updateModuleStatus        (reads module CR status -> DSC conditions)
-  -> gc.NewAction              (deletes resources missing from rr.Resources)
+Platform Reconcile
+  -> upgrade-gate preflight (isolated renders per managed module)
+  -> cleanupDisabledPlatformModules
+  -> provisionPlatformModules  (tracker CRs -> rr.Resources)
+  -> deploy.NewAction          (SSA-applies tracker CRs)
+  -> coordinateDAG             (opens ready DAG runlevels)
+  -> aggregatePlatformModulesStatus
+
+PlatformModule Reconcile
+  -> checkPlatformModuleRunlevelGate
+  -> provisionModuleOperator   (operator manifests -> rr.HelmCharts/rr.Manifests)
+  -> render, upgrade-gate extraction/check, env/config injection
+  -> deploy.NewAction          (SSA-applies operator resources)
+  -> updatePlatformModuleStatus (live rollout checks, stale cleanup, inventory/release commit)
 ```
 
-Module CRs follow the same lifecycle as component CRs: they are added to
-`rr.Resources` when enabled and removed by the GC action when disabled.
+Platform gate preflight renders managed module sources into a temporary request,
+extracts chart gates, merges global gates, and checks acknowledgments before
+tracker apply. A broken render is reported and retried per module while healthy
+modules continue within DAG ordering. Discovered unacknowledged gates still
+block provisioning. PlatformModule extracts and checks gates again before apply
+to cover modules whose preflight render failed. Gate ConfigMaps are not deployed.
+
+On OpenShift, DSC/DSCI own and delete module CRs. On xKS, users or GitOps own
+that lifecycle; disabling a module waits for their CR deletion. A PlatformModule
+tracker CR is the deploy signal for its module operator and its finalizer
+performs two-phase operator cleanup when the tracker is removed.
+
+Module registry enablement is static: startup suppression flags disable
+registry entries and unified DAG nodes. Platform `spec.modules` is runtime
+desired state. Effective module deployment requires both registry enablement
+and handler `IsEnabled` result; Platform reconciliation does not mutate the
+global registry.
 
 `deploy.NewAction` automatically sets `platform.opendatahub.io/part-of` labels
-and platform annotations on all resources in `rr.Resources`, including module
-CRs and module operator resources.
+and platform annotations on resources in `rr.Resources`.
 
-`updateModuleStatus` performs staleness detection (comparing
-`status.observedGeneration` against `metadata.generation`) and propagates
-`Degraded` status. If all modules are `Ready` but some report `Degraded=True`,
-`ModulesReady` is set to `False` with a message listing the degraded modules.
+The DSC controller's `ComputeModulesStatusDetailed` action performs staleness
+detection (comparing `status.observedGeneration` against
+`metadata.generation`) and propagates module conditions. The Platform
+controller aggregates the Ready conditions reported by PlatformModule tracker
+CRs into `ModulesReady`.
 
-### Module CR ownership and cleanup
+### Ownership and cleanup
 
-The module reconciler uses `WithDynamicOwnership()` which enables automatic
-owner reference injection on **all** deployed resources. The deploy action
-sets the primary resource (DSC or Platform) as controller owner of every
-resource it applies — module CRs, operator Deployments, RBAC, etc. This
-provides:
+Ownership is split between two controllers:
 
-- Cascade deletion: deleting DSC/Platform garbage-collects all module
-  resources via Kubernetes owner reference GC
-- Automatic watch registration: the `dynamicownership` action registers
-  `EnqueueRequestForOwner` watches for each deployed resource type, so
-  changes to module CRs trigger reconciliation of the owning DSC/Platform
-- GC integration: `gc.NewAction` uses `rr.Controller.Owns(objGVK)` to
-  determine which resource types to clean up
-
-`registerModuleCROwnedTypes` additionally registers module CR GVKs as
-statically owned types so the GC predicate returns true from the first
-reconcile, before dynamic ownership has discovered them.
+- On OpenShift, DSC/DSCI controllers build and apply module CRs. Module CRs remain
+  controller-owned by DSC/DSCI. PlatformModule watches their status and
+  publishes tracker status; Platform watches tracker status and does not claim
+  module CR GVKs through `OwnsGVK`.
+- Platform controller owns `PlatformModule` tracker CRs.
+- Each PlatformModule controller owns its module operator resources
+  (Deployments, RBAC, ConfigMaps, and similar objects).
 
 CRDs are an exception — the deploy action routes CRDs to a dedicated
 `deployCRD()` path that never sets owner references (CRDs are cluster-scoped
 singletons that may be shared).
 
-`cleanupDisabledModules` implements two-phase cleanup for explicitly
-disabled modules:
+`status.resources` is the inventory for stale cleanup and finalization. Before
+deploy, the controller persists the union of the recorded and rendered inventory.
+The final action deletes stale resources in reverse order and waits for deletion.
+After cleanup succeeds, it publishes the desired inventory and release together.
+An interrupted deploy or pending cleanup preserves the inventory and previous
+release. Deployment rollout is reported separately. Cleanup checks controller
+ownership through the cache and uses UID and resourceVersion preconditions.
+CRDs, Namespaces, Leases, and unmanaged objects survive with matching owner
+references detached. NotFound and NoMatch are harmless.
+Generic GC is not used by PlatformModule.
 
-1. **Phase 1**: Module is disabled, CR still exists. The action deletes the
-   CR. The module operator Deployment is left running so it can process
-   finalizers and clean up operands.
-2. **Phase 2**: On the next reconcile, the CR is confirmed gone. The action
-   renders the module's Helm chart and deletes each operator resource.
+Module-CR readiness is separate from the operator release commit: missing xKS
+module CRs do not block commits, and later runtime failures do not clear them.
+
+PlatformModule finalizer implements two-phase cleanup for explicitly disabled
+modules:
+
+Platform explicitly deletes owned trackers and waits for their finalizers; no
+generic GC competes with tracker lifecycle. Pending removal is included in
+Platform readiness, with waiting/failure details persisted on the tracker.
+
+1. **Phase 1**: The tracker is deleted, but the module CR still exists. The
+   finalizer keeps the operator resources alive so it can process finalizers.
+2. **Phase 2**: On later reconcile, module CR is confirmed gone. Finalizer
+   safely deletes tracked removable resources and waits until they are gone.
+   Missing handler keeps finalizer
+   because module-CR absence cannot be established.
+
+### Readiness contracts
+
+DAG ordering uses tracker release as authoritative handshake. Non-empty
+`status.release.version` is ready when it matches target platform version,
+even if tracker `Ready` later becomes false. New trackers have no release until
+their first deployment and cleanup complete; an empty release is not ready.
+The PlatformModule controller writes this release; module-CR release reporting
+is separate.
+
+Platform `ModulesReady` is stricter: every managed tracker must report
+`Ready=True`; its committed release must also match current platform
+release. A healthy tracker on an older release reports an upgrade-pending message.
 
 ### Component-to-module migration
 
@@ -117,7 +163,8 @@ ConfigMap. They must **not** contain a CR instance; the platform creates the CR.
 
 ### 2. Handler implementation (`internal/controller/modules/<name>/handler.go`)
 
-Embed `BaseHandler` and implement only `IsEnabled` and `BuildModuleCR`.
+Embed `BaseHandler` and implement `PopulatePlatformModule`, `IsEnabled`, and
+`BuildModuleCR`.
 Set **either** `ChartDir` (Helm) or `ManifestDir` (Kustomize) in `ModuleConfig`
 to select the manifest format.
 
@@ -166,12 +213,13 @@ func NewHandler() *handler {
 }
 ```
 
-Both variants still require `IsEnabled` and `BuildModuleCR`. `BuildModuleCR`
-receives a `*PlatformContext` containing all platform-level fields -- see the
+Both variants still require `PopulatePlatformModule`, `IsEnabled`, and
+`BuildModuleCR`. `BuildModuleCR` receives `*DSCContext` plus
+`*ModuleCRConfig` containing platform-level fields -- see the
 [Developer Guide](../../../docs/modular/Module%20Handler%20Developer%20Guide.md)
 for the full handler code.
 
-`BaseHandler` provides default implementations for the remaining four
+`BaseHandler` provides default implementations for remaining lifecycle
 interface methods:
 
 | Method | Default behaviour |
@@ -180,6 +228,9 @@ interface methods:
 | `GetGVK()` | Returns `Config.GVK` |
 | `GetOperatorManifests()` | Returns `OperatorManifests` with `HelmCharts` (if `ChartDir` set) and/or `Manifests` (if `ManifestDir` set) |
 | `GetModuleStatus()` | GETs the module CR by `Config.GVK` + `Config.CRName`, parses `.status.conditions` and `.status.observedGeneration`, returns a `*ModuleStatus` |
+| `GetModuleCRState()` | Reports absent, alive, or deleting module CR state |
+| `DeleteModuleCR()` | Idempotently deletes module CR |
+| `WriteDSCComponentStatus()` | Projects management state and releases into typed DSC status |
 
 ### 3. DSC API stanza (`api/datasciencecluster/v2/datasciencecluster_types.go`)
 
@@ -223,39 +274,36 @@ existingModules = map[string]mr.ModuleHandler{
 
 ## Package Reference
 
-### `types.go` -- ModuleHandler interface and PlatformContext
+### `types.go` -- ModuleHandler interface and contexts
 
-The 8-method contract between the platform and each module handler:
+Current `ModuleHandler` contract:
 
 - `GetName()` -- unique identifier (registry key, log messages)
-- `IsEnabled(platform)` -- reads DSC/DSCI to determine enablement
+- `IsEnabled(modules)` -- reads projected Platform module state
 - `GetGVK()` -- module CR's GroupVersionKind (used for watch and ownership
   registration)
 - `GetOperatorManifests(platform)` -- returns `OperatorManifests` with Helm
   charts and/or Kustomize manifests for the module operator
-- `BuildModuleCR(ctx, cli, platform)` -- constructs the module CR with
-  platform fields projected from `*PlatformContext`
+- `PopulatePlatformModule(pm, dscCtx)` -- projects DSC/DSCI management state
+- `BuildModuleCR(ctx, cli, dscCtx, cfg)` -- constructs module CR from typed
+  DSC/DSCI context plus platform config
 - `GetRelatedImages()` -- returns `RELATED_IMAGE_*` env var names
 - `GetModuleStatus(ctx, cli)` -- returns `*ModuleStatus` with conditions and
   generation metadata for staleness detection
-- `ModuleCRExists(ctx, cli)` -- checks if the module CR exists on the cluster
-  (returns false when the CRD is absent)
-- `DeleteOperatorResources(ctx, cli, platform)` -- renders the module's Helm
-  chart and deletes each resource from the cluster (for two-phase cleanup)
+- `GetModuleCRState(ctx, cli)` -- reports absent/alive/deleting
+- `DeleteModuleCR(ctx, cli)` -- idempotently deletes module CR
 
-`OwnedTypeRegistrar` is a single-method interface (`AddOwnedType(gvk)`) used
-by `registerModuleCROwnedTypes` to register module CR GVKs as statically
-owned types on the reconciler.
+- `WriteDSCComponentStatus(dsc, enabled, releases)` -- projects typed DSC status
 
-`PlatformContext` is built once per reconcile in `provisionModules` and passed
-to every handler's `BuildModuleCR`. It exposes:
+`PlatformContext` is built once per PlatformModule reconcile and passed to
+`GetOperatorManifests`. `BuildModuleCR` instead uses `DSCContext` and
+`ModuleCRConfig`. PlatformContext exposes:
 
 | Field | Source | Description |
 |---|---|---|
 | `ApplicationsNamespace` | `DSCI.Spec.ApplicationsNamespace` | Namespace where module operands deploy |
 | `MonitoringNamespace` | `DSCI.Spec.Monitoring.Namespace` | Namespace for the monitoring stack (empty when monitoring is unset or in xKS mode with no DSCI) |
 | `Release` | `rr.Release` | Platform identity (ODH/RHOAI) and version |
-| `DSC` | reconcile instance | The `DataScienceCluster` instance for reading module-specific component stanzas |
 
 #### Injected environment variables (platform → module operator)
 
@@ -288,12 +336,11 @@ default implementations for `GetName`, `GetGVK`, `GetOperatorManifests`, and
 from an unstructured object's `.status.conditions` field, including
 `ObservedGeneration` and `LastTransitionTime`.
 
-`ModuleCRExists` GETs the module CR by GVK + CRName and returns `true` if
-found, `false` if not found or if the CRD does not exist.
+`GetModuleCRState` GETs the module CR by GVK + CRName and reports absent,
+alive, or deleting. Missing CRDs are treated as absent.
 
-`DeleteOperatorResources` renders the module's Helm chart via
-`GetOperatorManifests`, then deletes each rendered resource from the cluster.
-NotFound errors are silently ignored for idempotency.
+Operator cleanup uses the PlatformModule's committed inventory and live owner
+UID verification; handlers do not re-render manifests to delete resources.
 
 ### `registry.go` -- Module registry
 
@@ -301,20 +348,22 @@ A singleton registry that stores `ModuleHandler` instances. Handlers are
 registered at program startup in `cmd/main.go`. The registry supports:
 
 - `Add(handler, ...RegistrationOption)` -- register a handler
-- `Enable(name)` / `Disable(name)` -- CLI suppression flag integration
-- `ForEach(fn)` -- iterate enabled handlers (used by `provisionModules`)
+- `Disable(name)` -- startup CLI suppression flag integration
+- `ForAll(fn)` -- iterate handlers with static registry-enabled state
 - `HasEntries()` -- check if any modules are registered
-- `RegistrationOption` -- `WithRunlevel(int)` for DAG-based ordering
+- `RegistrationOption` -- retained only for source compatibility; DAG ordering
+  comes from the unified `pkg/controller/provision` registry
 
-### `watch.go` -- Static ownership registration
+### Module CR watches and ownership
 
-`registerModuleCROwnedTypes(rec)` registers each module's CR GVK as a
-statically owned type on the reconciler via `AddOwnedType`. This ensures
-`gc.NewAction`'s type predicate returns true for module CRs from the first
-reconcile. Watch registration is handled automatically by the
-`dynamicownership` action (enabled via `WithDynamicOwnership` on the
-builder), which uses `EnqueueRequestForOwner` so module CR status changes
-trigger reconciliation of the owning DSC/Platform.
+PlatformModule controller registers status watches for every module CR GVK;
+Platform controller watches tracker status. Module CRDs created after startup
+trigger a tracker reconcile so dynamic watches can be registered.
+Those watches enqueue the owning DSC/DSCI reconciliation when module CR status
+changes, but do not claim module CRs through `OwnsGVK`. Module CRs remain
+DSC/DSCI-owned. The Platform controller watches PlatformModule tracker status;
+the PlatformModule controller owns only rendered operator resources recorded
+in its tracker inventory.
 
 ## Suppression Flags
 
@@ -322,10 +371,12 @@ Module handlers can be disabled at startup via CLI flags. The flags package
 (`pkg/utils/flags/suppression.go`) provides:
 
 - `RegisterModuleSuppressionFlags(names)` -- registers `--disable-<name>-module` flags
-- `IsModuleEnabled(name)` -- checks if the flag is set
+- `IsModuleEnabled(name)` -- checks if the flag is set (used while registering
+  static suppression state)
 
-These integrate with the registry's `Enable`/`Disable` methods in
-`cmd/main.go`'s `registerModules()` function.
+These integrate with registry `Disable` and unified-DAG `provision.Disable`
+calls in `cmd/main.go`'s `registerModules()` function. Runtime Platform module
+state does not mutate either registry.
 
 ## Relationship to `odh-platform-utilities`
 
