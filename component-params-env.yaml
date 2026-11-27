@@ -45,6 +45,9 @@ known_issues:
 - image: RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-95647
   reason: Image offboarded & removed from helm chart; will be removed from operator in https://github.com/opendatahub-io/opendatahub-operator/pull/4125
+- image: RELATED_IMAGE_ODH_RHAII_DASHBOARD_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHAI-227
+  reason: RHAII (xKS) dashboard image is not yet onboarded in ODH-Build-Config or RHOAI-Build-Config; an unset value is skipped and the dashboard-operator keeps its params.env default. Remove when RHAI-227 onboards the image
 
 odh_exceptions:
 - image: RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE
@@ -163,6 +166,9 @@ image_overrides_exceptions:
   reason: Used via module handler in monitoring, injected directly without params.env
 - image: RELATED_IMAGE_POSTGRESQL_16_IMAGE
   reason: Used via module handlers in dashboard, aihub, and databaseservice, injected directly without params.env
+- image: RELATED_IMAGE_ODH_RHAII_DASHBOARD_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHAI-227
+  reason: Used via module handler in dashboard (xKS operand only), injected directly without params.env
 - image: RELATED_IMAGE_UBI_MINIMAL_IMAGE
   reason: Used via module handler in aigateway, injected directly without params.env
 - image: RELATED_IMAGE_RHAII_VLLM_CPU_IMAGE
