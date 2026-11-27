@@ -306,7 +306,7 @@ endif
 # RBAC roles and webhook manifests are tracked, so clean-manifests must
 # not delete them (nor any unstaged edits to them). Reset tracked
 # manifests with "git checkout" or regenerate them with "make manifests".
-MANIFEST_GENERATED_FILES = config/crd/bases/_.yaml config/rhoai/crd/bases/_.yaml config/crd/external config/rhoai/crd/external
+MANIFEST_GENERATED_FILES = config/crd/external config/rhoai/crd/external
 
 .PHONY: manifests-all
 manifests-all:

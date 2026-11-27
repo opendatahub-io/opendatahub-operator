@@ -81,12 +81,10 @@ local.mk
 # generated manager kustomization, which remains untracked ("make
 # manager-kustomization" creates it from the tracked
 # kustomization.yaml.in). Not tracked: third-party CRDs from the Go
-# module cache (crd/external), bundle build outputs, the _.yaml
-# controller-gen artifact, and the cloudmanager manifests (separate
-# operator with its own generation prerequisites).
-config/crd/bases/_.yaml
+# module cache (crd/external), bundle build outputs, and the
+# cloudmanager manifests (separate operator with its own generation
+# prerequisites).
 config/crd/external
-config/rhoai/crd/bases/_.yaml
 config/rhoai/crd/external
 rhoai-bundle/
 odh-bundle/

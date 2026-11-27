@@ -1,3 +1,12 @@
+// Package scheme provides a runtime.Scheme with a test-only platform object
+// (TestPlatformObject) and conversion helpers for envtest-based tests.
+//
+// +kubebuilder:skip keeps the CRD generator from emitting a junk "_.yaml"
+// stub for TestPlatformObject, which looks like an API type but has no
+// +groupName. Real API types must not be added to this package: the skip
+// marker would silently exclude them from CRD generation.
+//
+// +kubebuilder:skip
 package scheme
 
 import (
