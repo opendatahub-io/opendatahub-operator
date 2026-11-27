@@ -19,9 +19,8 @@ import (
 
 const (
 	// Default admin group names for different platforms.
-	rhodsAdminsName     = "rhods-admins"
-	odhAdminsName       = "odh-admins"
-	dedicatedAdminsName = "dedicated-admins"
+	rhodsAdminsName = "rhods-admins"
+	odhAdminsName   = "odh-admins"
 
 	// Default allowed group name.
 	systemAuthenticatedGroup = "system:authenticated"
@@ -293,8 +292,6 @@ func (tc *AuthControllerTestCtx) getExpectedAdminGroupForPlatform() string {
 	switch platform {
 	case cluster.SelfManagedRhoai:
 		return rhodsAdminsName
-	case cluster.ManagedRhoai:
-		return dedicatedAdminsName
 	case cluster.OpenDataHub:
 		return odhAdminsName
 	default:

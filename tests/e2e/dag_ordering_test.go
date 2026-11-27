@@ -1691,7 +1691,7 @@ func (tc *DAGOrderingTestCtx) waitForOperatorReady(t *testing.T) {
 }
 
 func (tc *DAGOrderingTestCtx) operatorDeploymentName() string {
-	if cluster.GetRelease().Name == cluster.SelfManagedRhoai || cluster.GetRelease().Name == cluster.ManagedRhoai {
+	if cluster.GetRelease().Name == cluster.SelfManagedRhoai {
 		return controllerDeploymentRhoai
 	}
 	return controllerDeploymentODH

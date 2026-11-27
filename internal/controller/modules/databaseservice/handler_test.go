@@ -194,7 +194,7 @@ func TestGetOperatorManifests_SCCValuesByPlatform(t *testing.T) {
 	}
 
 	t.Run("OpenShift platforms force-include the Internal Postgres SCC", func(t *testing.T) {
-		for _, release := range []common.Platform{cluster.OpenDataHub, cluster.SelfManagedRhoai, cluster.ManagedRhoai} {
+		for _, release := range []common.Platform{cluster.OpenDataHub, cluster.SelfManagedRhoai} {
 			vals := getValues(t, release)
 			g.Expect(vals).Should(HaveKey("openshift"))
 			g.Expect(vals["openshift"]).Should(HaveKeyWithValue("securityContextConstraints", true))

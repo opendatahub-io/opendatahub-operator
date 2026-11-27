@@ -205,7 +205,6 @@ func TestGetOperatorManifests(t *testing.T) {
 	}{
 		{"odh", cluster.OpenDataHub, "/base/trustyai/default"},
 		{"self-managed-rhoai", cluster.SelfManagedRhoai, "/base/trustyai/default"},
-		{"managed-rhoai", cluster.ManagedRhoai, "/base/trustyai/default"},
 		{"xks", cluster.XKS, "/base/trustyai/default"},
 	}
 

@@ -94,7 +94,7 @@ func TestOperatorManifestsAndEnvironment(t *testing.T) {
 	if len(manifests.Manifests) != 1 || manifests.Manifests[0].SourcePath != "overlays/odh/dspo" {
 		t.Fatalf("unexpected ODH manifests: %#v", manifests.Manifests)
 	}
-	for _, platformName := range []common.Platform{cluster.SelfManagedRhoai, cluster.ManagedRhoai, cluster.XKS} {
+	for _, platformName := range []common.Platform{cluster.SelfManagedRhoai, cluster.XKS} {
 		t.Run(string(platformName), func(t *testing.T) {
 			platform.Release.Name = platformName
 			manifests := h.GetOperatorManifests(platform)

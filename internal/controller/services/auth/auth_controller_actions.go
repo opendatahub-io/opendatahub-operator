@@ -244,11 +244,6 @@ func createDefaultGroup(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 
 	release := cluster.GetRelease()
 	switch release.Name {
-	case cluster.ManagedRhoai:
-		err = addUserGroup(ctx, rr, "rhods-admins")
-		if err != nil && !k8serr.IsAlreadyExists(err) {
-			return err
-		}
 	case cluster.SelfManagedRhoai:
 		err = addUserGroup(ctx, rr, "rhods-admins")
 		if err != nil && !k8serr.IsAlreadyExists(err) {

@@ -117,7 +117,7 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 		return err
 	}
 
-	pflag.String("platform-type", "", "Platform type override (OpenDataHub, ManagedRHOAI, SelfManagedRHOAI, XKS). "+
+	pflag.String("platform-type", "", "Platform type override (OpenDataHub, SelfManagedRHOAI, XKS). "+
 		"If empty, auto-detects from the cluster.")
 	if err := viper.BindEnv("platform-type", "ODH_PLATFORM_TYPE"); err != nil {
 		return err

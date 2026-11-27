@@ -267,7 +267,6 @@ func TestManagePermissionsInvalidInstance(t *testing.T) {
 	g.Expect(err.Error()).To(ContainSubstring("instance is not of type *services.Auth"))
 }
 
-// - Managed RHOAI: "rhods-admins".
 func TestCreateDefaultGroupBasic(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()

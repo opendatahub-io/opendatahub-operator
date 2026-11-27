@@ -291,7 +291,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	if oconfig.MonitoringNamespace == "" {
 		switch cluster.GetRelease().Name {
-		case cluster.ManagedRhoai, cluster.SelfManagedRhoai:
+		case cluster.SelfManagedRhoai:
 			oconfig.MonitoringNamespace = cluster.DefaultMonitoringNamespaceRHOAI
 		default:
 			oconfig.MonitoringNamespace = cluster.DefaultMonitoringNamespaceODH
@@ -345,13 +345,13 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	secretCache, err := createSecretCacheConfig(platform)
+	secretCache, err := createSecretCacheConfig()
 	if err != nil {
 		setupLog.Error(err, "unable to get application namespace into cache")
 		os.Exit(1)
 	}
 
-	oDHCache, err := createODHGeneralCacheConfig(platform)
+	oDHCache, err := createODHGeneralCacheConfig()
 	if err != nil {
 		setupLog.Error(err, "unable to get application namespace into cache")
 		os.Exit(1)
@@ -536,13 +536,12 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// Combined sequential initialization to avoid race conditions between
-	// cleanup and DSCI/DSC creation (RHOAIENG-48054).
+	// cleanup and DSCI creation (RHOAIENG-48054).
 	leaderInitCfg := bootstrap.LeaderElectionInitConfig{
 		Platform:                  platform,
 		ManifestsBasePath:         oconfig.ManifestsBasePath,
 		MonitoringNamespace:       oconfig.MonitoringNamespace,
 		DSCIEnabled:               flags.IsDSCIEnabled(),
-		DSCEnabled:                flags.IsDSCEnabled(),
 		CreateDefaultDSCIDisabled: oconfig.IsDSCICreationDisabled(),
 	}
 	leaderInitHooks := bootstrap.DefaultLeaderElectionInitHooks()
@@ -620,7 +619,7 @@ func (l *LeaderElectionRunnableWrapper) NeedLeaderElection() bool {
 	return true
 }
 
-func getCommonCache(platform common.Platform) (map[string]cache.Config, error) {
+func getCommonCache() (map[string]cache.Config, error) {
 	namespaceConfigs := map[string]cache.Config{}
 
 	// networkpolicy need operator namespace
@@ -636,16 +635,11 @@ func getCommonCache(platform common.Platform) (map[string]cache.Config, error) {
 	appNamespace := cluster.GetApplicationNamespace()
 	namespaceConfigs[appNamespace] = cache.Config{}
 
-	// Add console link namespace for managed RHOAI
-	if platform == cluster.ManagedRhoai {
-		namespaceConfigs[cluster.NamespaceConsoleLink] = cache.Config{}
-	}
-
 	return namespaceConfigs, nil
 }
 
-func createSecretCacheConfig(platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs, err := getCommonCache(platform)
+func createSecretCacheConfig() (map[string]cache.Config, error) {
+	namespaceConfigs, err := getCommonCache()
 	if err != nil {
 		return nil, err
 	}
@@ -655,8 +649,8 @@ func createSecretCacheConfig(platform common.Platform) (map[string]cache.Config,
 	return namespaceConfigs, nil
 }
 
-func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs, err := getCommonCache(platform)
+func createODHGeneralCacheConfig() (map[string]cache.Config, error) {
+	namespaceConfigs, err := getCommonCache()
 	if err != nil {
 		return nil, err
 	}

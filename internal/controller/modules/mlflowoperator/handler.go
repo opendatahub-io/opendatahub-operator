@@ -30,12 +30,10 @@ const (
 
 var (
 	sectionTitles = map[common.Platform]string{
-		cluster.ManagedRhoai:     rhoaiSectionTitle,
 		cluster.SelfManagedRhoai: rhoaiSectionTitle,
 		cluster.OpenDataHub:      odhSectionTitle,
 	}
 	overlayByPlatform = map[common.Platform]string{
-		cluster.ManagedRhoai:     rhoaiPlatformOverlay,
 		cluster.SelfManagedRhoai: rhoaiPlatformOverlay,
 		cluster.OpenDataHub:      opendatahubOverlayPath,
 		cluster.XKS:              rhoaiPlatformOverlay,

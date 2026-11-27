@@ -20,8 +20,6 @@ func expectedAdminGroupForPlatform(platform common.Platform) string {
 	switch platform {
 	case cluster.SelfManagedRhoai:
 		return "rhods-admins"
-	case cluster.ManagedRhoai:
-		return "dedicated-admins"
 	default:
 		return "odh-admins" // fallback for OpenDataHub and unknown platforms
 	}
@@ -42,11 +40,6 @@ func TestBuildDefaultAuth(t *testing.T) {
 			name:               "SelfManagedRhoai platform",
 			platform:           cluster.SelfManagedRhoai,
 			expectedAdminGroup: expectedAdminGroupForPlatform(cluster.SelfManagedRhoai),
-		},
-		{
-			name:               "ManagedRhoai platform",
-			platform:           cluster.ManagedRhoai,
-			expectedAdminGroup: expectedAdminGroupForPlatform(cluster.ManagedRhoai),
 		},
 		{
 			name:               "Empty platform should fallback to OpenDataHub",
@@ -103,12 +96,6 @@ func TestCreateAuth(t *testing.T) {
 		{
 			name:         "Creates Auth when none exists - SelfManagedRhoai",
 			platform:     cluster.SelfManagedRhoai,
-			existingAuth: nil,
-			expectError:  false,
-		},
-		{
-			name:         "Creates Auth when none exists - ManagedRhoai",
-			platform:     cluster.ManagedRhoai,
 			existingAuth: nil,
 			expectError:  false,
 		},

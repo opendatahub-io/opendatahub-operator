@@ -3,8 +3,6 @@ package cluster
 import "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 
 const (
-	// ManagedRhoai defines expected addon catalogsource.
-	ManagedRhoai common.Platform = "OpenShift AI Cloud Service"
 	// SelfManagedRhoai defines display name in csv.
 	SelfManagedRhoai common.Platform = "OpenShift AI Self-Managed"
 	// OpenDataHub defines display name in csv.
@@ -38,10 +36,6 @@ const (
 
 	// Default OpenShift version CR name.
 	OpenShiftVersionObj = "version"
-
-	// Managed cluster required route.
-	NameConsoleLink      = "console"
-	NamespaceConsoleLink = "openshift-console"
 
 	// KueueQueueNameLabel is the label key used to specify the Kueue queue name for workloads.
 	KueueQueueNameLabel = "kueue.x-k8s.io/queue-name"
