@@ -41,6 +41,10 @@ spec:
       managementState: "Managed"
       instancesNamespace: "rhoai-model-registries"
     data:
+      # Requires administrator-provided PostgreSQL and dch-database-config.
+      # Installed by the shared Data module (feast-module-operator).
+      dataConnectHub:
+        managementState: Removed
       featureStore:
         managementState: "Managed"
     ogx:

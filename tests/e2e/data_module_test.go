@@ -8,12 +8,9 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dataModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/data"
@@ -46,22 +43,82 @@ func dataModuleTestSuite(t *testing.T) {
 	ctx := DataModuleTestCtx{ComponentTestCtx: baseCtx}
 
 	testCases := []TestCase{
-		{"Validate upgrade from in-tree: selector migration", ctx.ValidateUpgradeSelectorMigration},
 		{"Validate component enabled", ctx.ValidateComponentEnabled},
 		{"Validate module enabled", ctx.ValidateModuleEnabled},
 		{"Validate module operator deployed", ctx.ValidateModuleOperatorDeployed},
 		{"Validate module CR created", ctx.ValidateModuleCRCreated},
 		{"Validate module CR ready", ctx.ValidateModuleCRReady},
 		{"Validate DataReady condition", ctx.ValidateDataReadyCondition},
-		{"Validate feast-operator deployed by module", ctx.ValidateFeastOperatorDeployed},
-		{"Validate upgrade: existing operands preserved", ctx.ValidateUpgradeOperandsPreserved},
 		{"Validate v2 DSC Data selection", ctx.ValidateV2DSCDataSelection},
 		{"Validate Data Registry enables module independently", ctx.ValidateDataRegistryAloneEnablesModule},
+		{"Validate DCH shared-module projection", ctx.ValidateDataConnectHubProjection},
 		{"Validate module disabled cleanup", ctx.ValidateModuleDisabledCleanup},
 		{"Validate module disabled", ctx.ValidateModuleDisabled},
 	}
 
 	RunTestCases(t, testCases)
+}
+
+// ValidateDataConnectHubProjection exercises only the DSC -> Platform -> module
+// CR contract. The Data module owns application rendering and operand lifecycle.
+func (ctx *DataModuleTestCtx) ValidateDataConnectHubProjection(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier3)
+	if ctx.IsXKS() {
+		t.Skip("DCH DSC projection requires the OpenShift platform projection")
+	}
+	const (
+		gatewayName = "dch-e2e-gateway"
+		audience    = "https://dch-e2e.example"
+	)
+	moduleNN := types.NamespacedName{Name: dataModuleCRName}
+	snapshotDSCFields(t, ctx.TestContext, gvk.DataScienceCluster, []string{"spec", "components", "data"})
+
+	ctx.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.data.featureStore.managementState = "Removed"`),
+			testf.Transform(`.spec.components.data.dataRegistry.managementState = "Removed"`),
+			testf.Transform(`.spec.components.data.dataConnectHub = {
+				"managementState":"Managed",
+				"gateway":{"name":%q,"namespace":%q},
+				"tokenReviewAudiences":[%q]
+			}`, gatewayName, ctx.AppsNamespace, audience),
+		)),
+		WithCondition(jq.Match(`.spec.components.data.dataConnectHub.managementState == "Managed"`)),
+	)
+	ctx.EnsureResourceExists(
+		WithMinimalObject(gvk.Platform, ctx.PlatformNamespacedName),
+		WithCondition(jq.Match(`.spec.modules.data.managementState == "Managed"`)),
+	)
+	ctx.EnsureResourceExists(
+		WithMinimalObject(dataModuleCRGVK, moduleNN),
+		WithCondition(And(
+			jq.Match(`.spec.capabilities.featureStore.managementState == "Removed"`),
+			jq.Match(`.spec.capabilities.dataRegistry.managementState == "Removed"`),
+			jq.Match(`.spec.capabilities.dataConnectHub.managementState == "Managed"`),
+			jq.Match(`.spec.capabilities.dataConnectHub.namespace == %q`, componentApi.DefaultDataConnectHubNamespace),
+			jq.Match(`.spec.capabilities.dataConnectHub.gateway.name == %q`, gatewayName),
+			jq.Match(`.spec.capabilities.dataConnectHub.gateway.namespace == %q`, ctx.AppsNamespace),
+			jq.Match(`.spec.capabilities.dataConnectHub.tokenReviewAudiences == [%q]`, audience),
+		)),
+	)
+	ctx.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.data.featureStore.managementState = "Managed"`),
+			testf.Transform(`.spec.components.data.dataConnectHub.managementState = "Removed"`),
+		)),
+		WithCondition(jq.Match(`.spec.components.data.dataConnectHub.managementState == "Removed"`)),
+	)
+	ctx.EnsureResourceExists(
+		WithMinimalObject(dataModuleCRGVK, moduleNN),
+		WithCondition(And(
+			jq.Match(`.spec.capabilities.featureStore.managementState == "Managed"`),
+			jq.Match(`.spec.capabilities.dataConnectHub.managementState == "Removed"`),
+		)),
+	)
+	ctx.ValidateModuleOperatorDeployed(t)
 }
 
 // ValidateV2DSCDataSelection proves that the v2 FeastOperator stanza still
@@ -95,7 +152,10 @@ func (ctx *DataModuleTestCtx) ValidateV2DSCDataSelection(t *testing.T) {
 	ctx.EnsureResourceExists(
 		WithMinimalObject(dataModuleCRGVK, types.NamespacedName{Name: dataModuleCRName}),
 		WithEventuallyTimeout(ctx.TestTimeouts.longEventuallyTimeout),
-		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
+		WithCondition(And(
+			jq.Match(`.spec.capabilities.featureStore.managementState == "Managed"`),
+			jq.Match(`.spec.capabilities.dataRegistry.managementState == "Managed"`),
+		)),
 	)
 	ctx.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: ctx.AppsNamespace, Name: dataModuleOperatorDeployment}),
@@ -155,11 +215,17 @@ func (ctx *DataModuleTestCtx) ValidateModuleOperatorDeployed(t *testing.T) {
 func (ctx *DataModuleTestCtx) ValidateModuleCRCreated(t *testing.T) {
 	t.Helper()
 	g := NewWithT(t)
+	dsc := ctx.EnsureResourceExists(WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName))
 
-	g.Eventually(func() error {
+	g.Eventually(func(g Gomega) {
 		cr := &unstructured.Unstructured{}
 		cr.SetGroupVersionKind(dataModuleCRGVK)
-		return ctx.Client().Get(context.Background(), types.NamespacedName{Name: dataModuleCRName}, cr)
+		g.Expect(ctx.Client().Get(t.Context(), types.NamespacedName{Name: dataModuleCRName}, cr)).To(Succeed())
+		owner := metav1.GetControllerOf(cr)
+		g.Expect(owner).NotTo(BeNil())
+		g.Expect(owner.Kind).To(Equal(gvk.DataScienceCluster.Kind))
+		g.Expect(owner.Name).To(Equal(dsc.GetName()))
+		g.Expect(owner.UID).To(Equal(dsc.GetUID()))
 	}).
 		WithTimeout(2*time.Minute).
 		WithPolling(5*time.Second).
@@ -167,8 +233,7 @@ func (ctx *DataModuleTestCtx) ValidateModuleCRCreated(t *testing.T) {
 }
 
 // ValidateModuleCRReady checks that the FeastOperator CR reports Ready=True,
-// meaning the module operator has successfully reconciled and deployed the
-// feast-operator from bundled manifests.
+// allowing the platform to aggregate the module's readiness contract.
 func (ctx *DataModuleTestCtx) ValidateModuleCRReady(t *testing.T) {
 	t.Helper()
 	g := NewWithT(t)
@@ -177,6 +242,10 @@ func (ctx *DataModuleTestCtx) ValidateModuleCRReady(t *testing.T) {
 		cr := &unstructured.Unstructured{}
 		cr.SetGroupVersionKind(dataModuleCRGVK)
 		g.Expect(ctx.Client().Get(context.Background(), types.NamespacedName{Name: dataModuleCRName}, cr)).To(Succeed())
+		observed, found, err := unstructured.NestedInt64(cr.Object, "status", "observedGeneration")
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(found).To(BeTrue(), "module status must identify its observed generation")
+		g.Expect(observed).To(Equal(cr.GetGeneration()))
 
 		conditions, found, err := unstructured.NestedSlice(cr.Object, "status", "conditions")
 		g.Expect(err).NotTo(HaveOccurred())
@@ -214,120 +283,12 @@ func (ctx *DataModuleTestCtx) ValidateDataReadyCondition(t *testing.T) {
 	)
 }
 
-// ValidateFeastOperatorDeployed checks that the feast-operator-controller-manager
-// Deployment was created by the module operator from the bundled kustomize manifests.
-func (ctx *DataModuleTestCtx) ValidateFeastOperatorDeployed(t *testing.T) {
-	t.Helper()
-	g := NewWithT(t)
-
-	nn := types.NamespacedName{
-		Name:      "feast-operator-controller-manager",
-		Namespace: ctx.AppsNamespace,
-	}
-
-	g.Eventually(func(g Gomega) {
-		deploy := &appsv1.Deployment{}
-		g.Expect(ctx.Client().Get(context.Background(), nn, deploy)).To(Succeed())
-		g.Expect(deploy.Status.AvailableReplicas).To(BeNumerically(">=", 1))
-	}).
-		WithTimeout(3*time.Minute).
-		WithPolling(5*time.Second).
-		Should(Succeed(), "feast-operator-controller-manager should be deployed and available")
-}
-
-// ValidateUpgradeSelectorMigration simulates the in-tree to module upgrade scenario.
-// It creates a Deployment with old-style selectors (missing app.kubernetes.io/name) to
-// verify that the module operator's selector migration logic handles the transition by
-// deleting and recreating the Deployment with the correct selector.
-func (ctx *DataModuleTestCtx) ValidateUpgradeSelectorMigration(t *testing.T) {
-	t.Helper()
-	g := NewWithT(t)
-
-	oldDeploy := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      feastOperatorDeploymentName,
-			Namespace: ctx.AppsNamespace,
-			Labels: map[string]string{
-				"app.opendatahub.io/feast-operator": "true",
-				"app.kubernetes.io/part-of":         "feast-operator",
-			},
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: ptr.To[int32](1),
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"control-plane": "controller-manager",
-				},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"control-plane": "controller-manager",
-					},
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:    "manager",
-							Image:   "registry.k8s.io/pause:3.9",
-							Command: []string{"/pause"},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	err := ctx.Client().Create(context.Background(), oldDeploy)
-	if err != nil && !errors.IsAlreadyExists(err) {
-		t.Fatalf("Failed to create old-style Deployment: %v", err)
-	}
-
-	g.Eventually(func(g Gomega) {
-		deploy := &appsv1.Deployment{}
-		g.Expect(ctx.Client().Get(context.Background(), types.NamespacedName{
-			Name:      feastOperatorDeploymentName,
-			Namespace: ctx.AppsNamespace,
-		}, deploy)).To(Succeed())
-	}).
-		WithTimeout(30*time.Second).
-		WithPolling(2*time.Second).
-		Should(Succeed(), "old-style Deployment should exist before module takes over")
-}
-
-// ValidateUpgradeOperandsPreserved verifies that after the modular operator takes
-// over from the in-tree component, existing operand resources remain intact. This
-// validates the SSA-with-ForceOwnership adoption path.
-func (ctx *DataModuleTestCtx) ValidateUpgradeOperandsPreserved(t *testing.T) {
-	t.Helper()
-	g := NewWithT(t)
-
-	nn := types.NamespacedName{
-		Name:      feastOperatorDeploymentName,
-		Namespace: ctx.AppsNamespace,
-	}
-
-	g.Eventually(func(g Gomega) {
-		deploy := &appsv1.Deployment{}
-		g.Expect(ctx.Client().Get(context.Background(), nn, deploy)).To(Succeed())
-
-		g.Expect(deploy.Spec.Selector.MatchLabels).To(
-			HaveKeyWithValue("app.kubernetes.io/name", "feast-operator"),
-			"Deployment should have migrated selector after module takes over",
-		)
-		g.Expect(deploy.Status.AvailableReplicas).To(BeNumerically(">=", 1),
-			"Deployment should be available after migration")
-	}).
-		WithTimeout(5*time.Minute).
-		WithPolling(10*time.Second).
-		Should(Succeed(), "feast-operator Deployment should be recreated with correct selector")
-}
-
 // ValidateDataRegistryAloneEnablesModule verifies how Feature Store and Data
 // Registry management states are projected to Platform, DSC status, and the
 // FeastOperator capabilities.
 func (ctx *DataModuleTestCtx) ValidateDataRegistryAloneEnablesModule(t *testing.T) {
 	t.Helper()
+	snapshotDSCFields(t, ctx.TestContext, gvk.DataScienceCluster, []string{"spec", "components", "data"})
 
 	setStatesAndCheckProjection := func(featureStoreState, dataRegistryState, expectedState operatorv1.ManagementState) {
 		ctx.EventuallyResourcePatched(
@@ -335,10 +296,12 @@ func (ctx *DataModuleTestCtx) ValidateDataRegistryAloneEnablesModule(t *testing.
 			WithMutateFunc(testf.TransformPipeline(
 				testf.Transform(`.spec.components.data.featureStore.managementState = %q`, featureStoreState),
 				testf.Transform(`.spec.components.data.dataRegistry.managementState = %q`, dataRegistryState),
+				testf.Transform(`.spec.components.data.dataConnectHub.managementState = "Removed"`),
 			)),
 			WithCondition(And(
 				jq.Match(`(.spec.components.data.featureStore.managementState // "") == %q`, featureStoreState),
 				jq.Match(`(.spec.components.data.dataRegistry.managementState // "") == %q`, dataRegistryState),
+				jq.Match(`.spec.components.data.dataConnectHub.managementState == "Removed"`),
 			)),
 		)
 
@@ -392,12 +355,45 @@ func (ctx *DataModuleTestCtx) ValidateDataRegistryAloneEnablesModule(t *testing.
 // is disabled via ManagementState: Removed. This test is destructive and should run last.
 func (ctx *DataModuleTestCtx) ValidateModuleDisabledCleanup(t *testing.T) {
 	t.Helper()
+	g := NewWithT(t)
 
 	moduleCRNN := types.NamespacedName{Name: dataModuleCRName}
 	controllerNN := types.NamespacedName{
 		Namespace: ctx.AppsNamespace,
 		Name:      dataModuleOperatorDeployment,
 	}
+	operandNN := types.NamespacedName{Namespace: ctx.AppsNamespace, Name: feastOperatorDeploymentName}
+	// Projection cases (including their cleanup hooks) can leave every Data
+	// capability Removed. Establish an active module before testing deletion;
+	// otherwise absence alone would let this lifecycle assertion pass vacuously.
+	ctx.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.data.featureStore.managementState = "Managed"`),
+			testf.Transform(`.spec.components.data.dataRegistry.managementState = "Removed"`),
+			testf.Transform(`.spec.components.data.dataConnectHub.managementState = "Removed"`),
+		)),
+		WithCondition(jq.Match(`.spec.components.data.featureStore.managementState == "Managed"`)),
+	)
+	module := ctx.EnsureResourceExists(
+		WithMinimalObject(dataModuleCRGVK, moduleCRNN),
+		WithCondition(And(
+			jq.Match(`.status.observedGeneration == .metadata.generation`),
+			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
+		)),
+	)
+	controller := ctx.EnsureResourceExists(WithMinimalObject(gvk.Deployment, controllerNN))
+	// Observe an actual operand before removal, so the later absence check is
+	// evidence of module teardown rather than an object that never existed.
+	ctx.EnsureResourceExists(WithMinimalObject(gvk.Deployment, operandNN))
+
+	heldUID, err := addModuleCleanupFinalizer(t.Context(), ctx.Client(), module)
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), ctx.TestTimeouts.shortEventuallyTimeout)
+		defer cancel()
+		require.NoError(t, releaseModuleCleanupFinalizer(cleanupCtx, ctx.Client(), module, heldUID))
+	})
+	require.NoError(t, err)
 
 	// Transition FeastOperator to Removed via DSC patch
 	ctx.EventuallyResourcePatched(
@@ -405,14 +401,37 @@ func (ctx *DataModuleTestCtx) ValidateModuleDisabledCleanup(t *testing.T) {
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.components.data.featureStore.managementState = "Removed"`),
 			testf.Transform(`.spec.components.data.dataRegistry.managementState = "Removed"`),
+			testf.Transform(`.spec.components.data.dataConnectHub.managementState = "Removed"`),
 		)),
 		WithCondition(And(
 			jq.Match(`.spec.components.data.featureStore.managementState == "Removed"`),
 			jq.Match(`.spec.components.data.dataRegistry.managementState == "Removed"`),
+			jq.Match(`.spec.components.data.dataConnectHub.managementState == "Removed"`),
 		)),
 	)
-	// Phase 1: Module CR should be deleted
+	ctx.EnsureResourceExists(
+		WithMinimalObject(dataModuleCRGVK, moduleCRNN),
+		WithCondition(jq.Match(`.metadata.deletionTimestamp != null`)),
+	)
+	// This is the platform's finalizer boundary: its module operator must stay
+	// alive while the module CR is terminating. DCH child cleanup/RBAC details
+	// are covered by the Feast module's integration suite instead.
+	g.Consistently(func(g Gomega) {
+		freshModule := &unstructured.Unstructured{}
+		freshModule.SetGroupVersionKind(dataModuleCRGVK)
+		g.Expect(ctx.Client().Get(t.Context(), moduleCRNN, freshModule)).To(Succeed())
+		g.Expect(freshModule.GetUID()).To(Equal(heldUID))
+		g.Expect(freshModule.GetDeletionTimestamp()).NotTo(BeNil())
+		freshController := &appsv1.Deployment{}
+		g.Expect(ctx.Client().Get(t.Context(), controllerNN, freshController)).To(Succeed())
+		g.Expect(freshController.GetUID()).To(Equal(controller.GetUID()))
+		g.Expect(freshController.GetDeletionTimestamp()).To(BeNil())
+	}).WithTimeout(10 * time.Second).WithPolling(time.Second).Should(Succeed())
+	require.NoError(t, releaseModuleCleanupFinalizer(t.Context(), ctx.Client(), module, heldUID))
+	// The module must finish its own finalizers and operand teardown before
+	// the platform can remove its operator resources.
 	ctx.EnsureResourceGone(WithMinimalObject(dataModuleCRGVK, moduleCRNN))
+	ctx.EnsureResourceGone(WithMinimalObject(gvk.Deployment, operandNN))
 
 	// Phase 2: Module operator Deployment should be deleted
 	ctx.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))

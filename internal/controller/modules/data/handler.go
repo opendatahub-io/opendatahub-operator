@@ -17,6 +17,7 @@ import (
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
@@ -48,6 +49,9 @@ func NewHandler() *handler {
 					"RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE",
 					"RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE",
 					"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
+					"RELATED_IMAGE_ODH_DATA_CONNECT_HUB_CONTROLLER_IMAGE",
+					"RELATED_IMAGE_ODH_DATA_CONNECT_HUB_REST_IMAGE",
+					"RELATED_IMAGE_ODH_DATA_CONNECT_HUB_FLIGHT_IMAGE",
 				},
 			},
 		},
@@ -64,6 +68,8 @@ func (h *handler) PopulatePlatformModule(pm *configApi.PlatformModules, dscCtx *
 	case data.FeatureStore.ManagementState == operatorv1.Managed:
 		pm.Data.ManagementState = operatorv1.Managed
 	case data.DataRegistry.ManagementState == operatorv1.Managed:
+		pm.Data.ManagementState = operatorv1.Managed
+	case data.DataConnectHub.ManagementState == operatorv1.Managed:
 		pm.Data.ManagementState = operatorv1.Managed
 	default:
 		pm.Data.ManagementState = operatorv1.Removed
@@ -141,6 +147,10 @@ func (h *handler) BuildModuleCR(
 		if drState == "" {
 			drState = string(operatorv1.Removed)
 		}
+		dchSpec, err := buildDataConnectHubSpec(ctx, cli, data.DataConnectHub)
+		if err != nil {
+			return nil, err
+		}
 
 		spec["capabilities"] = map[string]any{
 			"featureStore": map[string]any{
@@ -149,6 +159,7 @@ func (h *handler) BuildModuleCR(
 			"dataRegistry": map[string]any{
 				"managementState": drState,
 			},
+			"dataConnectHub": dchSpec,
 		}
 	}
 
@@ -161,6 +172,46 @@ func (h *handler) BuildModuleCR(
 	u.SetName(h.Config.CRName)
 
 	return u, nil
+}
+
+// buildDataConnectHubSpec projects a capability into the existing FeastOperator
+// CR. It does not create a separate Platform module or deploy DCH operands.
+func buildDataConnectHubSpec(ctx context.Context, cli client.Client, config componentApi.DSCDataConnectHub) (map[string]any, error) {
+	state := config.ManagementState
+	if state == "" {
+		state = operatorv1.Removed
+	}
+	spec := map[string]any{"managementState": string(state)}
+	if state != operatorv1.Managed {
+		return spec, nil
+	}
+	namespace := config.Namespace
+	if namespace == "" {
+		namespace = componentApi.DefaultDataConnectHubNamespace
+	}
+	spec["namespace"] = namespace
+	gw := map[string]any{"name": gateway.GetDefaultGatewayName(), "namespace": gateway.GetGatewayNamespace()}
+	if config.Gateway != nil {
+		gw["name"] = config.Gateway.Name
+		gw["namespace"] = config.Gateway.Namespace
+	}
+	spec["gateway"] = gw
+	if len(config.TokenReviewAudiences) > 0 {
+		audiences := make([]any, len(config.TokenReviewAudiences))
+		for i, audience := range config.TokenReviewAudiences {
+			audiences[i] = audience
+		}
+		spec["tokenReviewAudiences"] = audiences
+	} else {
+		issuer, err := cluster.GetClusterServiceAccountIssuer(ctx, cli)
+		if err != nil {
+			return nil, fmt.Errorf("discovering Data Connect Hub TokenReview audience: %w", err)
+		}
+		if issuer != "" {
+			spec["tokenReviewAudiences"] = []any{issuer}
+		}
+	}
+	return spec, nil
 }
 
 // getGatewayOIDCSpec returns the OIDC issuer URL from GatewayConfig when the

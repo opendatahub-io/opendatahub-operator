@@ -175,7 +175,7 @@ func WithRegisterControllers(funcs ...RegisterControllersFn) OptionFn {
 }
 
 // WithCRDPaths sets custom paths for loading CRD manifests.
-// If not set, defaults to "<project_root>/config/crd/bases".
+// If not set, defaults to the generated CRDs for the build distribution.
 func WithCRDPaths(paths ...string) OptionFn {
 	return func(in *EnvT) {
 		in.crdPaths = paths
@@ -210,7 +210,7 @@ func New(opts ...OptionFn) (*EnvT, error) {
 
 	crdPaths := result.crdPaths
 	if len(crdPaths) == 0 {
-		crdPaths = []string{filepath.Join(result.root, "config", "crd", "bases")}
+		crdPaths = []string{filepath.Join(result.root, defaultCRDConfigDir, "crd", "bases")}
 	}
 
 	result.Env = envtest.Environment{

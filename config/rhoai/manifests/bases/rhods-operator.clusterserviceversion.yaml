@@ -84,6 +84,9 @@ metadata:
               "instancesNamespace": "rhoai-model-registries"
             },
             "data": {
+              "dataConnectHub": {
+                "managementState": "Removed"
+              },
               "featureStore": {
                 "managementState": "Managed"
               }

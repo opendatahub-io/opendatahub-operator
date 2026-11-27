@@ -350,6 +350,26 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `featureStore` _[DSCFeatureStore](#dscfeaturestore)_ |  |  |  |
 | `dataRegistry` _[DSCDataRegistry](#dscdataregistry)_ |  |  |  |
+| `dataConnectHub` _[DSCDataConnectHub](#dscdataconnecthub)_ | DataConnectHub is installed by the existing Data module operator. An<br />omitted managementState is treated as Removed. |  |  |
+
+
+#### DSCDataConnectHub
+
+
+
+DSCDataConnectHub configures DCH within the shared Data module.
+
+
+
+_Appears in:_
+- [DSCData](#dscdata)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `namespace` _string_ | Namespace contains the DCH services, not the module/controller.<br />Defaults to "odh-dch-infra" when omitted, or when empty and Managed.<br />A non-empty namespace cannot change while DCH remains Managed;<br />set Removed before changing it. | odh-dch-infra | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `gateway` _[DataConnectHubGateway](#dataconnecthubgateway)_ | Gateway overrides the platform-discovered Gateway. |  |  |
+| `tokenReviewAudiences` _string array_ | TokenReviewAudiences overrides platform-discovered service-account audiences.<br />Omitted or empty means use platform discovery. |  | MaxItems: 32 <br />items:MaxLength: 256 <br />items:MinLength: 1 <br /> |
 
 
 #### DSCDataRegistry
@@ -1151,6 +1171,39 @@ DataCommonStatus defines the observed state shared by the Data module.
 _Appears in:_
 - [DSCDataStatus](#dscdatastatus)
 
+
+
+#### DataConnectHubCommonSpec
+
+
+
+DataConnectHubCommonSpec defines the public DCH namespace configuration.
+
+
+
+_Appears in:_
+- [DSCDataConnectHub](#dscdataconnecthub)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `namespace` _string_ | Namespace contains the DCH services, not the module/controller.<br />Defaults to "odh-dch-infra" when omitted, or when empty and Managed.<br />A non-empty namespace cannot change while DCH remains Managed;<br />set Removed before changing it. | odh-dch-infra | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+
+
+#### DataConnectHubGateway
+
+
+
+DataConnectHubGateway identifies the platform Gateway used by DCH.
+
+
+
+_Appears in:_
+- [DSCDataConnectHub](#dscdataconnecthub)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name is the Gateway resource name. |  | MaxLength: 253 <br />MinLength: 1 <br /> |
+| `namespace` _string_ | Namespace contains the Gateway resource. |  | MaxLength: 63 <br />MinLength: 1 <br /> |
 
 
 #### DataSciencePipelinesCommonSpec

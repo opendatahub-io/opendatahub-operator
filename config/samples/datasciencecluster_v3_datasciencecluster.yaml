@@ -42,6 +42,10 @@ spec:
       managementState: "Managed"
       instancesNamespace: "odh-model-registries"
     data:
+      # Requires administrator-provided PostgreSQL and dch-database-config.
+      # Installed by the shared Data module (feast-module-operator).
+      dataConnectHub:
+        managementState: Removed
       featureStore:
         managementState: "Managed"
     ogx:

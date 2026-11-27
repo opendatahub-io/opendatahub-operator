@@ -4,10 +4,13 @@ import (
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 	v3webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v3"
@@ -45,6 +48,7 @@ func componentStates(c dscApi.Components) map[string]operatorv1.ManagementState 
 		"trustyai":             c.TrustyAI.ManagementState,
 		"aiHub":                c.AIHub.ManagementState,
 		"data.featureStore":    c.Data.FeatureStore.ManagementState,
+		"data.dataConnectHub":  c.Data.DataConnectHub.ManagementState,
 		"ogx":                  c.OGX.ManagementState,
 		"mlflowoperator":       c.MLflowOperator.ManagementState,
 		"sparkoperator":        c.SparkOperator.ManagementState,
@@ -159,4 +163,74 @@ func TestDefaultDSCFromSampleAdmittedByAPIServer(t *testing.T) {
 		"defaulting must preserve the explicit AIHub.instancesNamespace from the sample")
 	g.Expect(fetched.Spec.Components.Kserve.NIM.ManagementState).To(Equal(operatorv1.Managed),
 		"Kserve.NIM should remain Managed (the sample sets it, and the webhook only defaults it when empty)")
+	// The schema supplies the namespace even while DCH is Removed. The
+	// webhook only fills empty namespaces when Managed, so this also proves
+	// that the distribution-specific API default is present in the CRD.
+	g.Expect(fetched.Spec.Components.Data.DataConnectHub.ManagementState).To(Equal(operatorv1.Removed))
+	g.Expect(fetched.Spec.Components.Data.DataConnectHub.Namespace).To(Equal(componentApi.DefaultDataConnectHubNamespace))
+
+	// Prove the new capability is admitted and preserved, not silently pruned
+	// from the v3 schema. No module controllers or operands run in this envtest.
+	before := fetched.DeepCopy()
+	expectedGateway := &componentApi.DataConnectHubGateway{Name: "custom-gateway", Namespace: "custom-ingress"}
+	dch := &fetched.Spec.Components.Data.DataConnectHub
+	dch.ManagementState = operatorv1.Managed
+	dch.Gateway = expectedGateway
+	dch.TokenReviewAudiences = []string{"https://issuer.example"}
+	g.Expect(env.Client().Patch(ctx, fetched, client.MergeFrom(before))).To(Succeed())
+	updated := &dscApi.DataScienceCluster{}
+	g.Expect(env.Client().Get(ctx, client.ObjectKeyFromObject(fetched), updated)).To(Succeed())
+	g.Expect(updated.Spec.Components.Data.DataConnectHub.ManagementState).To(Equal(operatorv1.Managed))
+	g.Expect(updated.Spec.Components.Data.DataConnectHub.Namespace).To(Equal(componentApi.DefaultDataConnectHubNamespace))
+	g.Expect(updated.Spec.Components.Data.DataConnectHub.Gateway).To(Equal(expectedGateway))
+	g.Expect(updated.Spec.Components.Data.DataConnectHub.TokenReviewAudiences).To(Equal([]string{"https://issuer.example"}))
+	invalid := updated.DeepCopy()
+	invalid.Spec.Components.Data.DataConnectHub.Namespace = "other-dch-infra"
+	err = env.Client().Update(ctx, invalid)
+	g.Expect(k8serr.IsInvalid(err)).To(BeTrue(), "CEL must reject a DCH namespace change while Managed: %v", err)
+	g.Expect(err.Error()).To(ContainSubstring("DCH namespace is immutable while Managed"))
+	invalid = updated.DeepCopy()
+	invalid.Spec.Components.Data.DataConnectHub.Gateway.Namespace = ""
+	g.Expect(env.Client().Update(ctx, invalid)).NotTo(Succeed(), "DCH Gateway namespace must not be empty")
+	for _, whitespace := range []string{" ", "\t\n", "\u00a0", "\u3000"} {
+		for _, field := range []string{"gateway name", "gateway namespace", "audience"} {
+			invalid := updated.DeepCopy()
+			dch := &invalid.Spec.Components.Data.DataConnectHub
+			switch field {
+			case "gateway name":
+				dch.Gateway.Name = whitespace
+			case "gateway namespace":
+				dch.Gateway.Namespace = whitespace
+			case "audience":
+				dch.TokenReviewAudiences = []string{whitespace}
+			}
+			err := env.Client().Update(ctx, invalid)
+			g.Expect(k8serr.IsInvalid(err)).To(BeTrue(), "v3 must reject blank %s %q: %v", field, whitespace, err)
+			var legacy dscv2.DataScienceCluster
+			g.Expect(legacy.ConvertFrom(invalid)).NotTo(Succeed(), "v2 conversion must also reject blank %s %q", field, whitespace)
+		}
+	}
+
+	// Exercise allowed transitions through the same API-server CEL rule.
+	for _, transition := range []struct {
+		name      string
+		state     operatorv1.ManagementState
+		namespace string
+	}{
+		{"unchanged Managed namespace", operatorv1.Managed, componentApi.DefaultDataConnectHubNamespace},
+		{"disable", operatorv1.Removed, componentApi.DefaultDataConnectHubNamespace},
+		{"relocate while Removed", operatorv1.Removed, "custom-dch-infra"},
+		{"enable with override", operatorv1.Managed, "custom-dch-infra"},
+	} {
+		dch := &updated.Spec.Components.Data.DataConnectHub
+		dch.ManagementState = transition.state
+		dch.Namespace = transition.namespace
+		g.Expect(env.Client().Update(ctx, updated)).To(Succeed(), transition.name)
+		g.Expect(env.Client().Get(ctx, client.ObjectKeyFromObject(updated), updated)).To(Succeed())
+		g.Expect(updated.Spec.Components.Data.DataConnectHub.Namespace).To(Equal(transition.namespace))
+	}
+	invalid = updated.DeepCopy()
+	invalid.Spec.Components.Data.DataConnectHub.Namespace = ""
+	err = env.Client().Update(ctx, invalid)
+	g.Expect(k8serr.IsInvalid(err)).To(BeTrue(), "clearing a Managed override must not relocate DCH to the default: %v", err)
 }

@@ -2,6 +2,7 @@ package v2_test
 
 import (
 	"encoding/json"
+	"net/http"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -145,6 +146,72 @@ func TestDataScienceClusterV2_ValidatingWebhook(t *testing.T) {
 			g.Expect(resp.Allowed).To(Equal(tc.allowed))
 			if !tc.allowed {
 				g.Expect(resp.Result.Message).ToNot(BeEmpty(), "Expected error message when request is denied")
+			}
+		})
+	}
+}
+
+func TestDataScienceClusterV2_DCHNamespaceUpdate(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, previous, current string
+		code                    int32
+	}{
+		{"unchanged", `{"managementState":"Managed","namespace":"ns-a"}`, `{"managementState":"Managed","namespace":"ns-a"}`, http.StatusOK},
+		{"managed relocation", `{"managementState":"Managed","namespace":"ns-a"}`, `{"managementState":"Managed","namespace":"ns-b"}`, http.StatusForbidden},
+		{"managed namespace cleared", `{"managementState":"Managed","namespace":"ns-a"}`, `{"managementState":"Managed","namespace":""}`, http.StatusForbidden},
+		{"managed namespace omitted", `{"managementState":"Managed","namespace":"ns-a"}`, `{"managementState":"Managed"}`, http.StatusForbidden},
+		{
+			name:     "default namespace omitted",
+			previous: `{"managementState":"Managed","namespace":"` + componentApi.DefaultDataConnectHubNamespace + `"}`,
+			current:  `{"managementState":"Managed"}`,
+			code:     http.StatusOK,
+		},
+		{
+			name:     "default namespace cleared",
+			previous: `{"managementState":"Managed","namespace":"` + componentApi.DefaultDataConnectHubNamespace + `"}`,
+			current:  `{"managementState":"Managed","namespace":""}`,
+			code:     http.StatusOK,
+		},
+		{"disable", `{"managementState":"Managed","namespace":"ns-a"}`, `{"managementState":"Removed","namespace":"ns-b"}`, http.StatusOK},
+		{"removed relocation", `{"managementState":"Removed","namespace":"ns-a"}`, `{"managementState":"Removed","namespace":"ns-b"}`, http.StatusOK},
+		{"enable", `{"managementState":"Removed","namespace":"ns-a"}`, `{"managementState":"Managed","namespace":"ns-b"}`, http.StatusOK},
+		{"legacy empty namespace", `{"managementState":"Managed"}`, `{"managementState":"Managed","namespace":"ns-b"}`, http.StatusOK},
+		{"first enable", "", `{"managementState":"Managed","namespace":"ns-b"}`, http.StatusOK},
+		{"no DCH", "", "", http.StatusOK},
+		{"invalid new marker", `{"managementState":"Managed","namespace":"ns-a"}`, `{"managementState":"Managed","namespace":"INVALID"}`, http.StatusBadRequest},
+		{"invalid old marker", `broken`, `{"managementState":"Managed","namespace":"ns-a"}`, http.StatusBadRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			sch, err := scheme.New()
+			g.Expect(err).NotTo(HaveOccurred())
+			cli, err := fakeclient.New(fakeclient.WithScheme(sch))
+			g.Expect(err).NotTo(HaveOccurred())
+			validator := &v2webhook.Validator{Client: cli, Name: "test-v2", Decoder: admission.NewDecoder(sch)}
+			old := envtestutil.NewDSCV2("dch-namespace-update")
+			if tc.previous != "" {
+				old.Annotations = map[string]string{dscv2.DataConnectHubV3StateAnnotation: tc.previous}
+			}
+			current := envtestutil.NewDSCV2(old.Name)
+			if tc.current != "" {
+				current.Annotations = map[string]string{dscv2.DataConnectHubV3StateAnnotation: tc.current}
+			}
+			gvr := metav1.GroupVersionResource{Group: gvk.DataScienceClusterV2.Group, Version: "v2", Resource: "datascienceclusters"}
+			req := envtestutil.NewAdmissionRequest(t, admissionv1.Update, current, gvk.DataScienceClusterV2, gvr)
+			req.OldObject.Raw, err = json.Marshal(old)
+			g.Expect(err).NotTo(HaveOccurred())
+			resp := validator.Handle(t.Context(), req)
+			g.Expect(resp.Allowed).To(Equal(tc.code == http.StatusOK), "response: %+v", resp.Result)
+			g.Expect(resp.Result).NotTo(BeNil())
+			g.Expect(resp.Result.Code).To(Equal(tc.code))
+			switch tc.code {
+			case http.StatusForbidden:
+				g.Expect(resp.Result.Reason).To(Equal(metav1.StatusReasonForbidden))
+				g.Expect(resp.Result.Message).To(Equal("DCH namespace is immutable while Managed; set Removed before changing it"))
+			case http.StatusBadRequest:
+				g.Expect(resp.Result.Message).To(ContainSubstring("DSC for DCH validation"))
 			}
 		})
 	}

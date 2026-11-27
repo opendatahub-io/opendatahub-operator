@@ -383,7 +383,7 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 		}
 	}
 
-	return nil
+	return restoreDataConnectHubState(dst)
 }
 
 // ConvertFrom restores the v2 MaaS source view while keeping the migrated AI Gateway parent.
@@ -503,6 +503,9 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 			dst.Annotations = make(map[string]string)
 		}
 		dst.Annotations[KserveV3StateAnnotation] = string(encoded)
+	}
+	if err := preserveDataConnectHubState(dst, src); err != nil {
+		return err
 	}
 	if len(dst.Annotations) == 0 {
 		dst.Annotations = nil

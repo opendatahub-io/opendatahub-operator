@@ -98,6 +98,11 @@ func (d *Defaulter) Default(ctx context.Context, obj runtime.Object) error {
 //   - dsc: The DataScienceCluster object to mutate.
 func (d *Defaulter) applyDefaults(ctx context.Context, dsc *dscApi.DataScienceCluster) {
 	log := logf.FromContext(ctx)
+	// If DCH is enabled and Namespace is empty, set it to the default value.
+	dch := &dsc.Spec.Components.Data.DataConnectHub
+	if dch.ManagementState == operatorv1.Managed && dch.Namespace == "" {
+		dch.Namespace = componentApi.DefaultDataConnectHubNamespace
+	}
 	// If AI Hub is enabled and InstancesNamespace is empty, set it to the default value.
 	aiHub := &dsc.Spec.Components.AIHub
 	if aiHub.ManagementState == operatorv1.Managed {
