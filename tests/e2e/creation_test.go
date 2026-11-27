@@ -221,9 +221,10 @@ func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
 	dsci := tc.FetchDSCInitialization()
 
 	// Ensure namespaces with the owned namespace label exist.
-	tc.EnsureResourcesExist(
+	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.NetworkPolicy, types.NamespacedName{Namespace: dsci.Spec.ApplicationsNamespace, Name: dsci.Spec.ApplicationsNamespace}),
-		WithCustomErrorMsg("Expected the default NetworkPolicy to be created."),
+		WithCondition(jq.Match(`any(.spec.ingress[].from[]?; .namespaceSelector.matchLabels["network.openshift.io/policy-group"] == "monitoring")`)),
+		WithCustomErrorMsg("Default NetworkPolicy should allow User Workload Monitoring."),
 	)
 }
 
