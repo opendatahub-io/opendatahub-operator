@@ -76,6 +76,11 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundNetworkPolicy.Name).To(Equal(applicationNamespace))
 			Expect(foundNetworkPolicy.Namespace).To(Equal(applicationNamespace))
 			Expect(foundNetworkPolicy.Spec.PolicyTypes[0]).To(Equal(networkingv1.PolicyTypeIngress))
+			Expect(foundNetworkPolicy.Spec.Ingress).To(ContainElement(
+				HaveField("From", ContainElement(
+					HaveField("NamespaceSelector.MatchLabels", HaveKeyWithValue("network.openshift.io/policy-group", "monitoring")),
+				)),
+			))
 		})
 
 		It("Should not create user group when we do not have authentications CR in the cluster", func(ctx context.Context) {
