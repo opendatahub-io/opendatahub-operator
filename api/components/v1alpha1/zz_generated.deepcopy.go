@@ -1389,6 +1389,11 @@ func (in *KserveCommonSpec) DeepCopyInto(out *KserveCommonSpec) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.EnableLLMInferenceServiceDisaggregatedSet != nil {
+		in, out := &in.EnableLLMInferenceServiceDisaggregatedSet, &out.EnableLLMInferenceServiceDisaggregatedSet
+		*out = new(bool)
+		**out = **in
+	}
 	if in.ModelCache != nil {
 		in, out := &in.ModelCache, &out.ModelCache
 		*out = new(ModelCacheSpec)

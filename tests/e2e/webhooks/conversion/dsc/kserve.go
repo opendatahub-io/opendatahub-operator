@@ -29,6 +29,7 @@ func (m KserveSuite) run(t *testing.T) {
 	t.Run("v3_v2_round_trip_preserves_confidential_containers", m.v3V2RoundTripPreservesConfidentialContainers)
 	t.Run("v3_v2_round_trip_preserves_audit_profile", m.v3V2RoundTripPreservesAuditProfile)
 	t.Run("v3_v2_round_trip_preserves_strict_network_policy_toggle", m.v3V2RoundTripPreservesStrictNetworkPolicyToggle)
+	t.Run("v3_v2_round_trip_preserves_disaggregated_set_toggle", m.v3V2RoundTripPreservesDisaggregatedSetToggle)
 }
 
 // v3RejectsInvalidLUKSResourceID verifies the CRD schema rejects a
@@ -216,10 +217,28 @@ func (m KserveSuite) v3V2RoundTripPreservesAuditProfile(t *testing.T) {
 
 // v3V2RoundTripPreservesStrictNetworkPolicyToggle verifies that the v3-only
 // enableLLMInferenceServiceStrictNetworkPolicy toggle survives a v2
-// read-modify-write of the DSC, carried by the conversion-owned
-// kserve-v3-state annotation. It uses an explicit false, which must be kept
-// apart from an unset value.
+// read-modify-write of the DSC.
 func (m KserveSuite) v3V2RoundTripPreservesStrictNetworkPolicyToggle(t *testing.T) {
+	m.v3V2RoundTripPreservesExplicitFalseToggle(t, "enableLLMInferenceServiceStrictNetworkPolicy",
+		componentApi.KserveCommonSpec{EnableLLMInferenceServiceStrictNetworkPolicy: new(false)})
+}
+
+// v3V2RoundTripPreservesDisaggregatedSetToggle verifies that the v3-only
+// enableLLMInferenceServiceDisaggregatedSet toggle survives a v2
+// read-modify-write of the DSC.
+func (m KserveSuite) v3V2RoundTripPreservesDisaggregatedSetToggle(t *testing.T) {
+	m.v3V2RoundTripPreservesExplicitFalseToggle(t, "enableLLMInferenceServiceDisaggregatedSet",
+		componentApi.KserveCommonSpec{EnableLLMInferenceServiceDisaggregatedSet: new(false)})
+}
+
+// v3V2RoundTripPreservesExplicitFalseToggle applies a DSC whose KServe spec
+// sets the v3-only boolean toggle named by field to an explicit false, and
+// verifies the value is carried by the conversion-owned kserve-v3-state
+// annotation through a v2 read-modify-write. An explicit false must be kept
+// apart from an unset value.
+func (m KserveSuite) v3V2RoundTripPreservesExplicitFalseToggle(t *testing.T, field string, spec componentApi.KserveCommonSpec) {
+	t.Helper()
+
 	w := m.newScenario(t)
 
 	w.Apply(&dscApi.DataScienceCluster{
@@ -227,25 +246,22 @@ func (m KserveSuite) v3V2RoundTripPreservesStrictNetworkPolicyToggle(t *testing.
 		Spec: dscApi.DataScienceClusterSpec{
 			Components: dscApi.Components{
 				Kserve: componentApi.DSCKserve{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
-					KserveCommonSpec: componentApi.KserveCommonSpec{
-						EnableLLMInferenceServiceStrictNetworkPolicy: new(false),
-					},
+					ManagementSpec:   common.ManagementSpec{ManagementState: operatorv1.Removed},
+					KserveCommonSpec: spec,
 				},
 			},
 		},
 	}).Should(gomega.Succeed())
 
 	w.Get(gvk.DataScienceClusterV2, dscKey).Should(gomega.And(
-		jq.Match(`(.spec.components.kserve | has("enableLLMInferenceServiceStrictNetworkPolicy")) == false`),
-		jq.Match(`.metadata.annotations["%s"] | fromjson | .enableLLMInferenceServiceStrictNetworkPolicy == false`,
-			dscv2.KserveV3StateAnnotation),
+		jq.Match(`(.spec.components.kserve | has("%s")) == false`, field),
+		jq.Match(`.metadata.annotations["%s"] | fromjson | .%s == false`, dscv2.KserveV3StateAnnotation, field),
 	))
 
 	m.updateUnrelatedFieldThroughV2(t, w)
 
 	w.Get(gvk.DataScienceClusterV3, dscKey).Should(gomega.And(
-		jq.Match(`.spec.components.kserve.enableLLMInferenceServiceStrictNetworkPolicy == false`),
+		jq.Match(`.spec.components.kserve.%s == false`, field),
 		jq.Match(`.spec.components.kserve.rawDeploymentServiceConfig == "Headed"`),
 		jq.Match(`.metadata.annotations["%s"] == null`, dscv2.KserveV3StateAnnotation),
 	))
