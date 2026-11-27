@@ -8,6 +8,8 @@ import (
 
 	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -52,6 +54,18 @@ func NewHandler() *handler {
 					"RELATED_IMAGE_PERSES_IMAGE",
 					"RELATED_IMAGE_KORREL8R_IMAGE",
 				},
+				// Manager resources shipped before the chart default was
+				// raised to requests.memory=2Gi / limits.memory=3Gi.
+				PreviousDefaultResources: []corev1.ResourceRequirements{{
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("500m"),
+						corev1.ResourceMemory: resource.MustParse("512Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("100m"),
+						corev1.ResourceMemory: resource.MustParse("128Mi"),
+					},
+				}},
 			},
 		},
 	}

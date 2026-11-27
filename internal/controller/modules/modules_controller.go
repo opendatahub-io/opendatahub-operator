@@ -64,6 +64,7 @@ func commonActions() []actions.Fn {
 			deploy.WithApplyOrder(),
 			deploy.WithContinueOnError(),
 			deploy.WithPreviousFieldOwners(legacyDSCFieldOwner),
+			deploy.WithApplyCustomizer(gvk.Deployment, newModuleDeploymentCustomizer(DefaultRegistry())),
 		),
 		updateModuleStatus,
 		gc.NewAction(
