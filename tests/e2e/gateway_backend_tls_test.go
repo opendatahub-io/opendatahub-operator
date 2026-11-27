@@ -18,18 +18,30 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
 	. "github.com/onsi/gomega"
 )
+
+// backendTLSCRDGVK is the apiextensions CustomResourceDefinition GVK used to
+// read the BackendTLSPolicy CRD directly.
+var backendTLSCRDGVK = schema.GroupVersionKind{
+	Group:   "apiextensions.k8s.io",
+	Version: "v1",
+	Kind:    "CustomResourceDefinition",
+}
 
 const (
 	backendTLSHostileName = "backend-tls-hostile"
@@ -86,6 +98,43 @@ static_resources:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 `
 
+// skipUnlessBackendTLSPolicyV1Served skips the test when the cluster does not
+// serve BackendTLSPolicy v1. The operator's CRD gate deliberately keeps
+// backend TLS verification off on such clusters — Gateway API installs older
+// than v1.4 (for example OCP 4.20's v1alpha3-only CRDs) — and every backend
+// keeps flowing through the wildcard insecureSkipVerify rule, so there is
+// nothing to assert here. This mirrors the operator's own gate
+// (backendTLSPolicyCRDServed) instead of assuming unconditional rendering.
+func (tc *GatewayTestCtx) skipUnlessBackendTLSPolicyV1Served(t *testing.T) {
+	t.Helper()
+
+	crd := &unstructured.Unstructured{}
+	crd.SetGroupVersionKind(backendTLSCRDGVK)
+	err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: gvk.BackendTLSPolicyCRDName}, crd)
+	if err != nil {
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+			t.Skip("BackendTLSPolicy CRD is not installed; backend TLS verification is disabled by design on this cluster")
+		}
+		t.Fatalf("failed to read the BackendTLSPolicy CRD: %v", err)
+	}
+
+	versions, found, err := unstructured.NestedSlice(crd.Object, "spec", "versions")
+	if err != nil || !found {
+		t.Fatalf("failed to read the BackendTLSPolicy CRD versions: %v (found=%t)", err, found)
+	}
+	for _, raw := range versions {
+		version, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if version["name"] == "v1" && version["served"] == true {
+			return
+		}
+	}
+
+	t.Skip("BackendTLSPolicy v1 is not served (Gateway API < v1.4); backend TLS verification is disabled by design on this cluster")
+}
+
 // ValidateBackendTLSPolicies verifies that the operator renders the trust-bundle
 // ConfigMap and BackendTLSPolicies for its own gateway backends (RHAI-19666).
 // The oauth-callback route backend (kube-auth-proxy) is rendered by the
@@ -93,6 +142,8 @@ static_resources:
 // exposes two ports, so the policy is scoped to the routed https port.
 func (tc *GatewayTestCtx) ValidateBackendTLSPolicies(t *testing.T) {
 	t.Helper()
+
+	tc.skipUnlessBackendTLSPolicyV1Served(t)
 
 	ctx := tc.Context()
 
@@ -146,6 +197,7 @@ func (tc *GatewayTestCtx) ValidateBackendTLSRejectsUntrustedCertificate(t *testi
 
 	skipUnless(t, Tier1)
 	tc.SkipIfXKSCluster(t)
+	tc.skipUnlessBackendTLSPolicyV1Served(t)
 
 	ctx := tc.Context()
 
