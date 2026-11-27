@@ -130,6 +130,7 @@ const (
 	ReadyReason                = "Ready"
 	DeletingReason             = "Deleting"
 	DeletingMessage            = "Component CR is being deleted"
+	DeletionBlockedReason      = "DeletionBlocked"
 	UninstallInProgressReason  = "UninstallInProgress"
 	UninstallInProgressMessage = "Operator uninstall is in progress"
 
