@@ -52,8 +52,12 @@ func TestV2ClientCannotRelocateManagedDCH(t *testing.T) {
 	legacy.Annotations[dscv2.DataConnectHubV3StateAnnotation] = string(value)
 	err = cli.Update(ctx, legacy)
 	g.Expect(err).To(HaveOccurred())
-	g.Expect(err.Error()).To(ContainSubstring("DCH namespace is immutable while Managed"))
-	g.Expect(k8serr.IsForbidden(err) || k8serr.IsInvalid(err)).To(BeTrue(), "expected admission rejection: %v", err)
+	// The v2 validator uses admission.Denied (403/Forbidden), unlike v3 CEL
+	// validation (Invalid). Require this webhook's exact denial, not an RBAC failure.
+	g.Expect(k8serr.IsForbidden(err)).To(BeTrue(), "expected v2 webhook denial: %v", err)
+	g.Expect(err.Error()).To(Equal(
+		`admission webhook "datasciencecluster-v2-validator.opendatahub.io" denied the request: ` +
+			"DCH namespace is immutable while Managed; set Removed before changing it"))
 	g.Expect(cli.Get(ctx, key, application)).To(Succeed())
 	g.Expect(application.Spec.Components.Data.DataConnectHub.Namespace).To(Equal("ns-a"))
 	// Unrelated v2 updates still preserve DCH, rather than banning v2 clients.
